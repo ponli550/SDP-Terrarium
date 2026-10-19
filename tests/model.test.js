@@ -256,3 +256,99 @@ test('the home panel says whether its electricity figures are your bill or simul
   assert.deepStrictEqual([get(billed).v, get(billed).grade], ['matched to your bill', 'REAL']);
   assert.deepStrictEqual([get(input).v, get(input).grade], ['simulated', 'ILLUSTRATIVE']);
 });
+
+// ---- lots ----
+const segHitsRect = (a, b, r, m) => {   // slab test, rectangle grown by margin m
+  let t0 = 0, t1 = 1; const d = [b.x - a.x, b.z - a.z], lo = [r.x0 - m, r.z0 - m], hi = [r.x1 + m, r.z1 + m], p = [a.x, a.z];
+  for (let k = 0; k < 2; k++) {
+    if (Math.abs(d[k]) < 1e-12) { if (p[k] <= lo[k] || p[k] >= hi[k]) return false; continue; }
+    let u = (lo[k] - p[k]) / d[k], v = (hi[k] - p[k]) / d[k]; if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v); if (t0 >= t1) return false;
+  }
+  return true;
+};
+test('the layout has twelve distinct lots and no two buildings touch, whatever the home type', () => {
+  assert.strictEqual(T.LOTS.length, 12); assert.strictEqual(new Set(T.LOTS.map((p) => p.join(','))).size, 12);
+  for (const house of ['terrace', 'semid', 'condo']) for (let lot = 0; lot < 12; lot++) {
+    const rs = T.buildingRects(lot, house);
+    for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+      const a = rs[i], b = rs[j]; assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.z1 <= b.z0 || b.z1 <= a.z0, `lots ${i} and ${j} overlap with a ${house} on lot ${lot}`);
+    }
+  }
+});
+test('the scale is anchored on the real figure: township centre to the stop is exactly 0.93 km', () => {
+  const km = Math.hypot(T.STOP_POS.x - T.TOWNSHIP_CENTRE.x, T.STOP_POS.z - T.TOWNSHIP_CENTRE.z) * T.metresPerUnit() / 1000;
+  assert.ok(Math.abs(km - T.ASSUME.stopKm.v) < 1e-12);
+});
+test('lot distances follow the drawing: sensible range, and the nearest lot to the stop is the nearest in km', () => {
+  const kms = T.LOTS.map((_, i) => T.lotDistanceKm(i));
+  assert.ok(kms.every((k) => k > 0.3 && k < 2.0), kms.map((k) => k.toFixed(2)).join(' '));   // a township-scale walk, between a few hundred metres and two km
+  const byUnits = T.LOTS.map((p, i) => [Math.hypot(T.STOP_POS.x - p[0], T.STOP_POS.z - p[1]), i]).sort((a, b) => a[0] - b[0]);
+  assert.strictEqual(kms.indexOf(Math.min(...kms)), byUnits[0][1]); assert.strictEqual(kms.indexOf(Math.max(...kms)), byUnits[11][1]);
+});
+test('no lot means the real centre distance; a lot means a scaled one, graded illustrative; a bad lot falls back', () => {
+  const none = T.simulate(Object.assign({}, T.DEFAULTS)).figures.stopKm, lot = T.simulate(Object.assign({}, T.DEFAULTS, { lot: 6 })).figures.stopKm;
+  assert.deepStrictEqual([none.value, none.grade, none.label], [0.93, 'REAL', 'Nearest transit stop']);
+  assert.deepStrictEqual([lot.value === T.lotDistanceKm(6), lot.grade, lot.label], [true, 'ILLUSTRATIVE', 'Your lot to the bus stop']);
+  for (const bad of [-1, 12, 99, 2.5, NaN, 'x', null, undefined]) assert.strictEqual(T.simulate(Object.assign({}, T.DEFAULTS, { lot: bad })).figures.stopKm.value, 0.93, String(bad));
+});
+test('a farther lot means more walking minutes and more car cost and carbon at the same habits', () => {
+  const near = 11, far = 1, mk = (lot, walkShare) => T.simulate(Object.assign({}, T.DEFAULTS, { lot: lot, walkShare: walkShare })).figures;
+  assert.ok(T.lotDistanceKm(far) > T.lotDistanceKm(near));
+  assert.ok(mk(far, 0.5).walkMin.value > mk(near, 0.5).walkMin.value);
+  assert.ok(mk(far, 0.5).carRm.value > mk(near, 0.5).carRm.value);
+  assert.ok(mk(far, 0.5).carbonKg.value > mk(near, 0.5).carbonKg.value);
+  assert.ok(Math.abs(mk(far, 0.5).walkedTrips.value - mk(near, 0.5).walkedTrips.value) < 1e-9);
+});
+test('community scores trips on foot, so living far away is never rewarded; energy does notice the longer drives', () => {
+  const sc = (lot) => T.scores(Object.assign({}, T.DEFAULTS, { lot: lot, walkShare: 0.2 })).pillars;
+  assert.ok(Math.abs(sc(1)[2].score - sc(11)[2].score) < 1e-9);
+  assert.ok(sc(1)[0].score < sc(11)[0].score);
+  const moreWalk = T.scores(Object.assign({}, T.DEFAULTS, { lot: 1, walkShare: 0.9 })).pillars[2].score; assert.ok(moreWalk > sc(1)[2].score);
+});
+test('the neighbour baseline still scores 50 on every comparative pillar after the change', () => {
+  const s = T.scores(Object.assign({}, T.NEIGHBOUR)); for (const i of [0, 2, 3]) assert.ok(Math.abs(s.pillars[i].score - 50) < 1e-9);
+});
+test('nobody walks or drives through a house, for every lot, home type and mode', () => {
+  for (const house of ['terrace', 'semid', 'condo']) for (let lot = 0; lot < 12; lot++) {
+    const rects = T.buildingRects(lot, house);
+    for (const mode of ['walk', 'car']) {
+      const path = T.tripPath(lot, mode);
+      for (let k = 0; k + 1 < path.length; k++) for (let r = 0; r < rects.length; r++) assert.ok(!segHitsRect(path[k], path[k + 1], rects[r], 1.0), `${mode} from lot ${lot} (${house}) leg ${k} crosses lot ${r}`);
+    }
+  }
+});
+test('a trip starts and ends at the lot, a walk reaches the stop and waits there, a car goes out to the main road', () => {
+  for (let lot = 0; lot < 12; lot++) {
+    const w = T.tripPath(lot, 'walk'), c = T.tripPath(lot, 'car');
+    assert.deepStrictEqual(w[0], w[w.length - 1]); assert.deepStrictEqual(c[0], c[c.length - 1]);
+    const stopLeg = w.find((p) => p.wait); assert.ok(stopLeg && Math.abs(stopLeg.x - T.STOP_POS.x) <= 3 && Math.abs(stopLeg.z - 8.2) < 1e-9);
+    assert.ok(c.some((p) => p.z === 18 && p.x > 100));
+  }
+  assert.deepStrictEqual(T.tripPath(99, 'walk'), T.tripPath(0, 'walk'));
+});
+test('lot info: number, distance and minutes, and nothing for a bad lot', () => {
+  const i = T.lotInfo(4); assert.deepStrictEqual([i.n, i.km === T.lotDistanceKm(4), i.grade], [5, true, 'ILLUSTRATIVE']);
+  assert.ok(Math.abs(i.walkMin - i.km * T.ASSUME.walkMinKm.v) < 1e-12); assert.strictEqual(T.lotInfo(12), null); assert.strictEqual(T.lotInfo(-1), null);
+});
+test('panels: with a lot, the distance rows are illustrative and name the lot; without, the real figures are unchanged', () => {
+  const withLot = Object.assign({}, T.DEFAULTS, { lot: 6 }), row = (k, i, r) => T.inspectInfo(k, i, { day: 2, hour: 10 }).rows.find((x) => x.k === r);
+  assert.strictEqual(row('home', withLot, 'Your lot').v, 'Lot 7, ' + T.lotDistanceKm(6).toFixed(2) + ' km from the stop');
+  assert.strictEqual(row('home', T.DEFAULTS, 'Your lot').v, 'not placed yet');
+  assert.ok(row('stop', withLot, 'From your lot') && row('stop', withLot, 'From your lot').grade === 'ILLUSTRATIVE' && !row('stop', T.DEFAULTS, 'From your lot'));
+  assert.strictEqual(row('stop', withLot, 'Distance from the township centre').grade, 'REAL');
+  assert.deepStrictEqual([row('person', withLot, 'Distance each way').grade, row('person', T.DEFAULTS, 'Distance each way').grade], ['ILLUSTRATIVE', 'REAL']);
+  assert.strictEqual(row('person', withLot, 'Walking time each way').v, (T.lotDistanceKm(6) * T.ASSUME.walkMinKm.v).toFixed(0) + ' min');
+});
+test('plot trees stand in the rear yard, clear of every building, whatever the lot and home type', () => {
+  assert.strictEqual(T.PLOT_SLOTS.length, 10); assert.strictEqual(new Set(T.PLOT_SLOTS.map((s) => s.join(','))).size, 10);
+  const R = 2.8;   // a tree's canopy radius as drawn
+  for (const house of ['terrace', 'semid', 'condo']) for (let lot = 0; lot < 12; lot++) {
+    const rects = T.buildingRects(lot, house);
+    for (const s of T.PLOT_SLOTS) for (let r = 0; r < rects.length; r++) {
+      const x = T.LOTS[lot][0] + s[0], z = T.LOTS[lot][1] + s[1], q = rects[r];
+      const dx = Math.max(q.x0 - x, 0, x - q.x1), dz = Math.max(q.z0 - z, 0, z - q.z1);
+      assert.ok(Math.hypot(dx, dz) > R, `a tree at slot ${s} of lot ${lot} (${house}) reaches lot ${r}'s building`);
+    }
+  }
+});

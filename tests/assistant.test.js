@@ -116,3 +116,15 @@ test('after a bill is matched, the briefing says so and keeps the other figures 
   assert.ok(!r.withheld && t.includes('This month your home uses 700 kWh') && t.includes('matched to your own bill') && !t.includes('illustrative until a real home'));
   const plain = words(A.ask('give me the briefing', { input: input })); assert.ok(plain.includes('illustrative until a real home') && !plain.includes('matched to your own bill'));
 });
+test('with a lot placed, the stop answer adds that lot\'s own distance, graded illustrative, and still verifies', () => {
+  const withLot = { input: Object.assign({}, T.DEFAULTS, { lot: 5 }) }, r = A.ask('how far is the bus stop?', withLot), t = words(r), li = T.lotInfo(5);
+  assert.ok(!r.withheld && t.includes('Grade: REAL') && t.includes('From your lot, lot 6, it is about ' + Math.round(li.km * 100) / 100 + ' km') && /drawing/.test(t) && /illustrative/.test(t));
+  assert.ok(!words(A.ask('how far is the bus stop?', { input: Object.assign({}, T.DEFAULTS) })).includes('From your lot'));
+});
+test('verifier: a lot claim with a false number is withheld, a true one passes', () => {
+  const c = { input: Object.assign({}, T.DEFAULTS, { lot: 5 }) }, li = T.lotInfo(5);
+  const mk = (field, v) => () => base(['It is ' + f(0, String(v)) + '.'], [{ kind: 'lot', field: field, value: v }]);
+  assert.ok(A.ask('x', c, mk('km', 9.99)).withheld); assert.ok(A.ask('x', c, mk('n', 3)).withheld);
+  assert.ok(!A.ask('x', c, mk('km', Math.round(li.km * 100) / 100)).withheld); assert.ok(!A.ask('x', c, mk('n', 6)).withheld);
+  assert.ok(A.ask('x', { input: Object.assign({}, T.DEFAULTS) }, mk('n', 6)).withheld, 'no lot means no lot claim can hold');
+});
