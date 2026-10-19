@@ -46,6 +46,8 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .gatebox{width:min(440px,100%);max-height:92vh;overflow:auto}.gatebox h1,.gatebox h2{margin:0 0 6px;font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink)}
 .gatebox input[type=email]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
 .chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
+.hud-bc{bottom:64px;left:50%;transform:translateX(-50%);width:min(470px,92%)}.hud-bc select{width:100%;padding:7px;border-radius:8px;border:1px solid rgba(0,0,0,.18);background:#fff;color:#16241a;font:inherit}.hud-bc .rd{font-size:12px;color:#5b6b5f;margin:6px 0}
+.tag3d.lotlabel{background:rgba(21,101,192,.82)}
 .tag3d{position:absolute;left:0;top:0;pointer-events:none;background:rgba(22,36,26,.82);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap}.tag3d.dim{background:rgba(21,101,192,.85)}
 .nowebgl{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:#16241a;background:#e8f3df}
 .layout{display:grid;gap:14px;padding:14px 16px;max-width:1500px;margin:0 auto;grid-template-columns:minmax(300px,360px) 1fr}
@@ -56,7 +58,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
-  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="signOut">Sign out</button></div>
+  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="signOut">Sign out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
 </header>
 <div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
@@ -77,7 +79,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
     <h2 id="wizTitle">Your home</h2>
     <p class="note" style="margin-top:0">Tell us about the home. You can change any of this later, from Edit home.</p>
     <div id="wizFields"></div>
-    <div class="row"><button class="cta" type="button" id="wizDone">Save home</button></div>
+    <div class="row"><button class="cta" type="button" id="wizNext">Next: place your lot</button><button type="button" id="wizDone">Save home</button></div>
   </div>
 </div>
 <div class="layout">
@@ -128,6 +130,12 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
         <button data-speed="1">x1</button><button data-speed="2">x2</button><button data-speed="4" class="on">x4</button><button data-speed="8">x8</button>
         <button id="follow">Follow a trip</button>
         <button id="skip" hidden>Skip week</button>
+      </div>
+      <div class="hud hud-bc panel" id="placeBar" hidden>
+        <b>Place your lot</b> <span class="vs">click a lot on the map, or choose one here</span>
+        <select id="lotSel" aria-label="Lot"></select>
+        <div class="rd" id="lotRead" aria-live="polite"></div>
+        <div class="row" style="margin-top:0"><button class="cta" type="button" id="lotConfirm">Confirm lot</button><button type="button" id="lotCancel">Cancel</button></div>
       </div>
       <div class="hud hud-br panel"><span id="legend">Click anything to inspect it. Everything that moves is illustrative. Drag to rotate, scroll to zoom.</span></div>
     </div>

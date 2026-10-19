@@ -87,8 +87,8 @@
     var homes = new THREE.Group(); scene.add(homes);
     var homePalette = [0xf4e4c1, 0xe8c9a0, 0xd9e4c8, 0xf0d5d0, 0xcfe0e8, 0xf6e8a8];
     function building(type, color, withMarks) {
-      var g = new THREE.Group(), spec = { terrace: [11, 6.5, 15], semid: [15, 7.5, 17], condo: [14, 30, 14] }[type] || [11, 6.5, 15];
-      var w = spec[0], h = spec[1], d = spec[2];
+      var g = new THREE.Group(), fp = T.FOOTPRINT[type] || T.FOOTPRINT.terrace;
+      var w = fp[0], h = { terrace: 6.5, semid: 7.5, condo: 30 }[type] || 6.5, d = fp[1];
       add(g, box(w, h, d), M(color), 0, h / 2, 0);
       add(g, box(w + 1.2, 0.7, d + 1.2), M(0x8d6e63), 0, h + 0.35, 0);               // roof slab
       add(g, box(w + 1.2, 0.6, 0.4), M(0xd7ccc8), 0, h + 1.0, d / 2 + 0.4);           // parapet
@@ -112,25 +112,30 @@
     pin.rotation.x = Math.PI; scene.add(pin);
     var mine = null, mineKey = '', plotTrees = new THREE.Group(), panels = new THREE.Group(), ring = null;
     scene.add(plotTrees);
-    var HOME_POS = { x: -10, z: -10 };
-    var neighbours = [[-58, -10, 0], [-44, -10, 1], [-30, -10, 2], [12, -10, 3], [26, -10, 4], [-58, -42, 5], [-40, -42, 1], [-22, -42, 0], [-4, -42, 2], [14, -42, 3], [32, -42, 4]];
-    neighbours.forEach(function (n, i) {
-      var t = building(i % 5 === 3 ? 'semid' : 'terrace', homePalette[n[2] % homePalette.length], false);
-      t.userData.inspect = 'neighbour'; t.position.set(n[0], 0, n[1]); homes.add(t);
-      if (i % 3 === 0) ornamentalTree(homes, n[0] + 8, n[1] + 11, 0.9);
-    });
-    var PLOT = [[-22, 2], [-3, 3], [-20, -22], [0, -23], [-26, -10], [6, -10], [-16, 4], [-5, 4], [-24, -4], [3, -2]];
+    var HOME_POS = { x: T.LOTS[0][0], z: T.LOTS[0][1] }, currentLot = 0, builtLot = -1, neigh = new THREE.Group(); scene.add(neigh);
+    function buildNeighbours(excludeLot) {
+      while (neigh.children.length) neigh.remove(neigh.children[0]);
+      T.LOTS.forEach(function (p, i) {
+        if (i === excludeLot) return;
+        var t = building(T.lotNeighbourType(i), homePalette[i % homePalette.length], false);
+        t.userData.inspect = 'neighbour'; t.userData.lot = i; t.position.set(p[0], 0, p[1]); neigh.add(t);
+        if (i % 3 === 0) ornamentalTree(neigh, p[0] + 1.2, p[1] - 12.6, 0.9);
+      });
+    }
 
     function rebuildHome(input) {
       var native = Math.round(input.trees * input.nativeShare);
-      var key = [input.house, input.solarKwp, input.trees, native].join('|');
+      var lotIdx = T.validLot(input.lot) ? input.lot : 0;
+      var key = [input.house, input.solarKwp, input.trees, native, lotIdx].join('|');
       if (key === mineKey) return; mineKey = key;
+      currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1];
+      if (builtLot !== lotIdx) { buildNeighbours(lotIdx); builtLot = lotIdx; }
       if (mine) homes.remove(mine);
       if (ring) scene.remove(ring);
-      mine = building(input.house, 0xfff1cf, true); mine.userData.inspect = 'home';
+      mine = building(input.house, 0xfff1cf, true); mine.userData.inspect = 'home'; mine.userData.lot = lotIdx;
       mine.position.set(HOME_POS.x, 0, HOME_POS.z); homes.add(mine);
       pin.userData.baseY = mine.userData.roof.y + 8;
-      ring = add(scene, new THREE.RingGeometry(14, 15.5, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
+      ring = add(scene, new THREE.RingGeometry(10, 11.2, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
       ring.rotation.x = -Math.PI / 2;
       panels.userData.inspect = 'solar';
       while (panels.children.length) panels.remove(panels.children[0]);
@@ -143,7 +148,7 @@
       panels.position.set(HOME_POS.x, 0, HOME_POS.z); if (!panels.parent) scene.add(panels);
       while (plotTrees.children.length) plotTrees.remove(plotTrees.children[0]);
       for (var t = 0; t < input.trees; t++) {
-        var pos = PLOT[t % PLOT.length], x = HOME_POS.x + pos[0] + 10, z = HOME_POS.z + pos[1] + 6;
+        var pos = T.PLOT_SLOTS[t % T.PLOT_SLOTS.length], x = HOME_POS.x + pos[0], z = HOME_POS.z + pos[1];
         if (t < native) nativeTree(plotTrees, x, z, 1.15, 900 + t); else ornamentalTree(plotTrees, x, z, 1.05);
       }
     }
@@ -152,11 +157,17 @@
     // ---------- picking and selection ----------
     var ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), downAt = null, selected = null, outline = new THREE.BoxHelper(new THREE.Object3D(), 0xffd54f);
     outline.visible = false; scene.add(outline);
+    // lot pads: flat discs under every lot, drawn and clickable only while placing your home
+    var pads = [], placing = false, hoverLot = -1, padLabels = [];
+    T.LOTS.forEach(function (p, i) {
+      var pad = new THREE.Mesh(new THREE.CylinderGeometry(8.4, 8.4, 0.3, 28), new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.35 }));
+      pad.position.set(p[0], 0.2, p[1] + 1); pad.userData.inspect = 'lot'; pad.userData.lot = i; pad.visible = false; scene.add(pad); pads.push(pad);
+    });
     function tagged(o) { while (o && !(o.userData && o.userData.inspect)) o = o.parent; return o || null; }
     function pickNdc(nx, ny) {
       ptr.set(nx, ny); ray.setFromCamera(ptr, camera);
       var hits = ray.intersectObjects(scene.children, true);
-      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === outline || o.type === 'Points' || o.type === 'LineSegments') continue; return tagged(o); }
+      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === outline || o.type === 'Points' || o.type === 'LineSegments' || o.visible === false) continue; return tagged(o); }   // a raycaster does not skip hidden meshes, so we do
       return null;
     }
     function select(o) {
@@ -179,10 +190,17 @@
     el.addEventListener('pointerdown', function (e) { downAt = { x: e.clientX, y: e.clientY }; flyGoal = null; });   // grabbing the scene cancels an ease-in
     el.addEventListener('pointerup', function (e) {
       if (!downAt) return; var moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); downAt = null; if (moved > 5) return;
-      var r = el.getBoundingClientRect(); select(pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1));
+      var r = el.getBoundingClientRect(), hit = pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      if (placing) { if (hit && hit.userData.lot !== undefined && hooks.onLotPick) hooks.onLotPick(hit.userData.lot); return; }   // while placing, a click chooses a lot
+      select(hit);
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!placing || downAt) return;
+      var r = el.getBoundingClientRect(), hit = pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), lot = hit && hit.userData.lot !== undefined ? hit.userData.lot : -1;
+      if (lot !== hoverLot) { hoverLot = lot; if (hooks.onLotHover) hooks.onLotHover(lot < 0 ? null : lot); }
     });
     function objectsByKind() {
-      return { home: mine, neighbour: homes.children[0], stop: stop, bus: busObj.obj, corridor: corridor.children[10], solar: panels.children[0],
+      return { home: mine, neighbour: neigh.children[0], lot: placing ? pads[2] : null, stop: stop, bus: busObj.obj, corridor: corridor.children[10], solar: panels.children[0],
                person: (agents.filter(function (a) { return a.kind === 'walk'; })[0] || {}).obj, car: (agents.filter(function (a) { return a.kind === 'car'; })[0] || {}).obj };
     }
     // Projects a known object to the screen and picks there: proves a real click on it would land on it.
@@ -193,6 +211,11 @@
         var pr = cc.clone().project(camera), hitB = pickNdc(pr.x, pr.y); scene.remove(blk); return hitB ? hitB.userData.inspect : 'none';
       }
       var o = objectsByKind()[kind]; if (!o) return 'absent';
+      if (kind === 'lot') {   // a pad is clickable where no building covers it: probe both sides of every pad and count the exposed ones
+        var exposed = 0;
+        pads.forEach(function (pd) { [-7.2, 7.2].forEach(function (dx) { var pc = new THREE.Vector3(pd.position.x + dx, 0.2, pd.position.z).project(camera), ph = pickNdc(pc.x, pc.y); if (ph && ph.userData.inspect === 'lot' && ph.userData.lot === pd.userData.lot) exposed++; }); });
+        padHits = exposed; return exposed > 0 ? 'lot' : 'none';
+      }
       var box = new THREE.Box3().setFromObject(o), c = box.getCenter(new THREE.Vector3()); c.project(camera);
       var hit = pickNdc(c.x, c.y); return hit ? hit.userData.inspect : 'none';
     }
@@ -236,15 +259,13 @@
       else { p.x += dx / dist * step; p.z += dz / dist * step; a.obj.rotation.y = Math.atan2(-dz, dx); }
     }
     function spawnTrip(mode, index) {
-      var door = { x: HOME_POS.x - 3, z: HOME_POS.z + 10 };
+      var path = T.tripPath(currentLot, mode);
       if (mode === 'walk') {
-        var o = person(index % 2 ? 0xe57373 : 0x4fc3f7); o.userData.inspect = 'person'; o.position.set(door.x, 0, door.z); scene.add(o);
-        var path = [door, { x: door.x, z: 8.2 }, { x: 48, z: 8.2, wait: 2.2 }, { x: door.x, z: 8.2 }, door];
-        o.position.set(door.x, 0, door.z); agents.push({ obj: o, path: path, i: 0, speed: 9, wait: 0, kind: 'walk' });
+        var o = person(index % 2 ? 0xe57373 : 0x4fc3f7); o.userData.inspect = 'person'; o.position.set(path[0].x, 0, path[0].z); scene.add(o);
+        agents.push({ obj: o, path: path, i: 0, speed: 9, wait: 0, kind: 'walk' });
       } else {
-        var cc = car(index % 2 ? 0xef6c00 : 0x5c6bc0); cc.userData.inspect = 'car'; cc.position.set(door.x + 4, 0, door.z + 1); scene.add(cc);
-        var cp = [{ x: door.x + 4, z: door.z + 1 }, { x: door.x + 4, z: 18 }, { x: 108, z: 18 }, { x: door.x + 4, z: 18 }, { x: door.x + 4, z: door.z + 1 }];
-        agents.push({ obj: cc, path: cp, i: 0, speed: 34, wait: 0, kind: 'car' });
+        var cc = car(index % 2 ? 0xef6c00 : 0x5c6bc0); cc.userData.inspect = 'car'; cc.position.set(path[0].x, 0, path[0].z); scene.add(cc);
+        agents.push({ obj: cc, path: path, i: 0, speed: 34, wait: 0, kind: 'car' });
       }
     }
     // the bus: ping-pongs along the main road, dwelling at the stop. Scheduled, illustrative.
@@ -284,9 +305,17 @@
     label('Elmina Urban Biodiversity Corridor', anchor(0, 14, -78), 0);
     label('Bus, scheduled (illustrative)', busObj.obj, 7, 'dim');
     var v = new THREE.Vector3();
+    function setPlacing(on) {
+      placing = !!on; hoverLot = -1;
+      pads.forEach(function (p) { p.visible = placing; });
+      if (placing && !padLabels.length) T.LOTS.forEach(function (p, i) { label('Lot ' + (i + 1), anchor(p[0], 1, p[1] + 1), 0, 'lotlabel'); padLabels.push(labels[labels.length - 1]); });
+      padLabels.forEach(function (l) { l.hidden = !placing; l.el.style.display = placing ? '' : 'none'; });
+      if (placing) { select(null); flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
+    }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
       labels.forEach(function (l) {
+        if (l.hidden) return;
         l.obj.getWorldPosition(v); v.y += l.dy; v.project(camera);
         var px = (v.x + 1) / 2 * w, hw = (l.el.offsetWidth || 120) / 2 + 6;
         var vis = v.z < 1 && px > hw && px < w - hw && Math.abs(v.y) < 1.05;   // the whole label must fit inside the stage
@@ -344,15 +373,18 @@
         if (flyGoal) { var stp = flyGoal.target.clone().sub(controls.target).multiplyScalar(ease); controls.target.add(stp); camera.position.add(stp); if (flyGoal.target.distanceTo(controls.target) < 0.15) flyGoal = null; }
         if (zoomGoal !== null) { var curD = camera.position.distanceTo(controls.target), nxtD = curD + (zoomGoal - curD) * ease; if (Math.abs(zoomGoal - curD) < 0.08) { nxtD = zoomGoal; zoomGoal = null; } camera.position.sub(controls.target).setLength(nxtD).add(controls.target); }
       }
+      if (placing) pads.forEach(function (p, i) { var chosen = T.validLot(input && input.lot) && input.lot === i; p.material.color.setHex(chosen ? 0x43a047 : i === hoverLot ? 0xffd54f : 0x4fc3f7); p.material.opacity = chosen ? 0.6 : i === hoverLot ? 0.55 : 0.3; });
       if (hooks.wheel && frames === 2) { shotZoom.start = camera.position.distanceTo(controls.target); renderer.domElement.dispatchEvent(new WheelEvent('wheel', { deltaY: hooks.wheel, cancelable: true, bubbles: true })); }
       if (hooks.wheel && frames === 3) shotZoom.after1 = camera.position.distanceTo(controls.target);
       controls.update(); placeLabels();
       renderer.render(scene, camera);
       if (hooks.maxFrames && frames >= hooks.maxFrames) {
         root.__shotDone = true;
-        var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        if (hooks.clickLot !== undefined && hooks.clickLot !== null) { api.debugClickLot(hooks.clickLot); renderer.render(scene, camera); }
+        if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
+        var nt = newestAgent();
+        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), homePos: { x: HOME_POS.x, z: HOME_POS.z }, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
         return;
       }
@@ -366,7 +398,8 @@
     resize(); if (root.ResizeObserver) new root.ResizeObserver(resize).observe(container); else root.addEventListener('resize', resize);
     root.requestAnimationFrame(frame);
 
-    return {
+    var padHits = null;
+    var api = {
       setInput: function (i) { input = i; rebuildHome(i); },
       setSpeed: function (s) { speed = s; },
       setRange: function (from, to, loop) { range = { from: from, to: to, loop: !!loop }; },
@@ -376,6 +409,21 @@
       isRunning: function () { return running; },
       skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
       clock: function () { return { day: clock.day, hour: clock.hour }; },
+      placeMode: setPlacing,
+      isPlacing: function () { return placing; },
+      // a real pointer click on a lot's pad, at the screen position it projects to: proves the whole path from click to the page
+      debugClickLot: function (i) {
+        var c = new THREE.Vector3(T.LOTS[i][0] + 7.2, 0.2, T.LOTS[i][1] + 1).project(camera), r = el.getBoundingClientRect(), x = r.left + (c.x + 1) / 2 * r.width, y = r.top + (1 - c.y) / 2 * r.height;
+        var fire = function (type) { el.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true, pointerId: 1 })); };
+        fire('pointerdown'); fire('pointerup');
+      },
+      // a real pointer click on the middle of a known object: proves that an ordinary click inspects it (or, while placing, chooses its lot)
+      debugClickKind: function (kind) {
+        var o = objectsByKind()[kind]; if (!o) return false;
+        var c = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera), r = el.getBoundingClientRect(), x = r.left + (c.x + 1) / 2 * r.width, y = r.top + (1 - c.y) / 2 * r.height;
+        var fire = function (type) { el.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true, pointerId: 1 })); };
+        fire('pointerdown'); fire('pointerup'); return true;
+      },
       select: function (kind) { select(kind ? objectsByKind()[kind] || null : null); },
       debugPick: debugPick,
       follow: function (on) {
@@ -388,6 +436,7 @@
       stats: function () { return { agents: agents.length, labels: labels.length }; },
       renderer: renderer,
     };
+    return api;
   }
 
   root.Scene3D = { create: create };

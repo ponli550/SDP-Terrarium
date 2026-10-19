@@ -1,13 +1,13 @@
 (function () {
   var T = window.Terrarium;
   var st = Object.assign({}, T.DEFAULTS, { walkShare: 0.2 });
-  var g = null, draft = null, anim = null, scene = null, speed = 4, clockDay = 1, sim = null, inspected = null, lastClk = { day: 1, hour: 6 }, lastInspHour = -1;
+  var g = null, draft = null, anim = null, scene = null, speed = 4, clockDay = 1, sim = null, placing = null, inspected = null, lastClk = { day: 1, hour: 6 }, lastInspHour = -1;
   var $ = function (id) { return document.getElementById(id); };
   var fmt = {
     'RM': function (v) { return 'RM ' + v.toFixed(0); }, 'kWh': function (v) { return v.toFixed(0) + ' kWh'; },
     'kg CO2': function (v) { return v.toFixed(0) + ' kg'; }, 'min': function (v) { return v.toFixed(0) + ' min'; },
     '%': function (v) { return v.toFixed(0) + '%'; }, 'km': function (v) { return v.toFixed(2) + ' km'; },
-    'trees': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
+    'trees': function (v) { return v.toFixed(0); }, 'trips': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
   };
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null;
@@ -28,7 +28,21 @@
       if (f[0] !== 'house') $('w_' + f[0] + 'V').textContent = (f[0] === 'solarKwp' && !v ? 'none' : v + f[5]);
     });
   }
-  function saveProfile(setUp) { if (session) store.saveHome(P.pickHome(st), setUp); }
+  function saveProfile(setUp) { if (session && !placing) store.saveHome(P.pickHome(st), setUp); }   // a lot being tried out is not saved until it is confirmed
+  // ---- placing your lot: click one on the map, or choose it from the list (so it works without a mouse or a 3D view) ----
+  function lotText(i) { var l = T.lotInfo(i); return l ? 'Lot ' + l.n + ': ' + l.km.toFixed(2) + ' km to the bus stop, about ' + Math.round(l.walkMin) + ' min on foot. The layout is a drawing scaled from the real ' + T.ASSUME.stopKm.v + ' km centre distance, so these distances are illustrative.' : 'No lot chosen yet.'; }
+  function lotRead(hover) { $('lotRead').textContent = hover !== null && hover !== undefined ? lotText(hover) : lotText(st.lot); }
+  function startPlacing() {
+    if (g || placing) return;
+    placing = { prev: st.lot }; closeWizard(); $('placeBar').hidden = false;
+    $('lotSel').innerHTML = (T.validLot(st.lot) ? '' : '<option value="">Choose a lot</option>') + T.LOTS.map(function (_, i) { var l = T.lotInfo(i); return '<option value="' + i + '">Lot ' + l.n + ', ' + l.km.toFixed(2) + ' km</option>'; }).join('');
+    if (T.validLot(st.lot)) $('lotSel').value = String(st.lot);
+    if (scene) scene.placeMode(true); lotRead(null); $('lotSel').focus();
+  }
+  function chooseLot(i) { if (!placing || !T.validLot(i)) return; st.lot = i; if ($('lotSel').querySelector('option[value=""]')) $('lotSel').innerHTML = $('lotSel').innerHTML.replace('<option value="">Choose a lot</option>', ''); $('lotSel').value = String(i); render(); lotRead(null); }
+  function stopPlacing() { placing = null; $('placeBar').hidden = true; if (scene) scene.placeMode(false); }
+  function confirmLot() { if (!placing) return; if (!T.validLot(st.lot)) { $('lotRead').textContent = 'Choose a lot first.'; return; } stopPlacing(); saveProfile(true); showChip(); render(); }
+  function cancelLot() { if (!placing) return; if (placing.prev === undefined) delete st.lot; else st.lot = placing.prev; stopPlacing(); render(); }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
   function closeWizard() { $('wizard').hidden = true; }
   function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Leave' : 'Sign out'; } }
@@ -53,10 +67,15 @@
   });
   $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
   $('wizDone').addEventListener('click', function () { saveProfile(true); closeWizard(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('wizard').hidden) { saveProfile(true); closeWizard(); } });
+  $('wizNext').addEventListener('click', function () { saveProfile(false); startPlacing(); });
+  $('moveHouse').addEventListener('click', function () { startPlacing(); });
+  $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
+  $('lotConfirm').addEventListener('click', confirmLot);
+  $('lotCancel').addEventListener('click', cancelLot);
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (placing) cancelLot(); else if (!$('wizard').hidden) { saveProfile(true); closeWizard(); } });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
   $('signOut').addEventListener('click', function () {
-    store.signOut(); session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
+    store.signOut(); stopPlacing(); session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
     closeWizard(); showChip(); render(); showGate();
   });
@@ -68,7 +87,7 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, onInspect: onInspect, picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
@@ -129,7 +148,7 @@
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
     chart(s.you.days); gameView(input, s);
-    saveProfile(false); $('editHome').disabled = !!g;
+    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = !!g;
     if (!scene) onClock(clockDay, 12);
   }
   function chart(days) {
@@ -154,7 +173,7 @@
     var b = $('gameBody');
     if (!g) {
       b.innerHTML = '<p>Run this home for four weeks. Each week brings an event, you choose air-con, setpoint and walking, then watch the week play out in the township. At the end you are scored on the four pillars against the neighbour average. Set the home, solar and trees below first.</p><div class="row"><button class="cta" id="gStart">Start the month</button></div>';
-      $('gStart').onclick = function () { g = T.newGame(st); draft = null; clockDay = 1; if (scene) { scene.pause(); scene.jumpTo(1, 6); } render(); };
+      $('gStart').onclick = function () { if (placing) cancelLot(); g = T.newGame(st); draft = null; clockDay = 1; if (scene) { scene.pause(); scene.jumpTo(1, 6); } render(); };
       return;
     }
     if (anim) {
@@ -245,6 +264,7 @@
   if (q0.has('shot')) {   // screenshot mode only: preset the home and game state so every view can be captured
     if (q0.get('house')) st.house = q0.get('house');
     ['acHours', 'setpoint', 'solarKwp', 'trees'].forEach(function (k) { if (q0.has(k)) st[k] = +q0.get(k); });
+    if (q0.has('lot')) st.lot = +q0.get('lot');
     if (q0.has('walk')) st.walkShare = +q0.get('walk'); if (q0.has('native')) st.nativeShare = +q0.get('native');
     if (q0.has('speed')) speed = +q0.get('speed');
     if (q0.has('autoweek')) { g = T.newGame(st); }
@@ -255,6 +275,7 @@
   else { var cur = store.current(); if (cur) startSession(cur); else showGate(); }
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
+  if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }
   if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));

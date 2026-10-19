@@ -50,6 +50,27 @@ ok(ui.wizard !== 'none' && ui.gate === 'none' && ui.chip !== 'none', 'in set-up:
 h = dump('frames=4'); ui = JSON.parse(attr(h, 'ui'));
 ok(ui.gate === 'none' && ui.wizard === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
 
+// placing your lot: a real pointer click on a pad moves the home, and only while placing
+h = dump('place=1&clicklot=5&frames=40&day=1&hour=12'); let pl = JSON.parse(attr(h, 'state'));
+ok(pl.neighbours === 11 && pl.neighAtHome === 0, 'after the home moves, the neighbours are rebuilt around its new lot (' + pl.neighbours + ' neighbours, ' + pl.neighAtHome + ' on it)');
+ok(pl.padsVisible === 12, 'while placing, all twelve pads are drawn (' + pl.padsVisible + ')');
+ok(pl.placing === true && pl.lot === 5 && pl.homePos.x === 26 && pl.homePos.z === -10, 'clicking lot 6 while placing moves the home there (lot ' + pl.lot + ' at ' + pl.homePos.x + ',' + pl.homePos.z + ')');
+ok(/Lot 6: 0\.\d\d km to the bus stop/.test(h), 'and the page reads out that lot\'s distance');
+h = dump('clicklot=5&frames=40&day=1&hour=12'); pl = JSON.parse(attr(h, 'state'));
+ok(pl.placing === false && pl.lot === 0 && pl.targetToSel === null, 'outside place mode the same click moves nothing and selects nothing (a hidden pad is not clickable)');
+h = dump('place=1&leave=1&frames=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.placing === false && pl.padsVisible === 0, 'leaving place mode hides every pad again (' + pl.padsVisible + ' left)');
+h = dump('frames=12'); ok(JSON.parse(attr(h, 'state')).padsVisible === 0, 'and in normal use no pad is drawn');
+for (const k of ['home', 'neighbour', 'stop']) { h = dump('clickkind=' + k + '&frames=24&day=1&hour=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.selectedKind === k, 'a real click on the ' + k + ' inspects it (selected ' + pl.selectedKind + ')'); }
+h = dump('place=1&clickkind=neighbour&frames=24&day=1&hour=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.selectedKind === null && pl.lot !== 0, 'while placing, a click on a neighbour chooses its lot and does not inspect it (selected ' + pl.selectedKind + ', lot ' + pl.lot + ')');
+h = dump('lot=11&house=condo&frames=20&day=1&hour=12'); pl = JSON.parse(attr(h, 'state'));
+ok(pl.lot === 11 && pl.homePos.x === 26 && pl.homePos.z === -42, 'a saved lot puts the home on that lot');
+ok(pl.neighbours === 11 && pl.neighAtHome === 0, 'and the neighbours stand on the other eleven lots, none on yours (' + pl.neighbours + ' neighbours, ' + pl.neighAtHome + ' on your lot)');
+h = dump('lot=0&frames=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.neighbours === 11 && pl.neighAtHome === 0, 'whichever lot you are on, there are eleven neighbours');
+h = dump('place=1&picks=lot,neighbour,home&frames=12'); picks = JSON.parse(attr(h, 'picks'));
+ok(JSON.parse(attr(h, 'state')).padHits >= 4, 'at least four pad edges are exposed and clickable from the default view (' + JSON.parse(attr(h, 'state')).padHits + ')');
+ok(picks.lot === 'lot' && picks.neighbour === 'neighbour' && picks.home === 'home', 'while placing, the pads, the neighbours and your home can all be picked');
+h = dump('picks=lot&frames=12'); ok(JSON.parse(attr(h, 'picks')).lot === 'absent', 'outside place mode there are no pads to pick');
+
 h = dump('autoweek=1&speed=8&walk=0.5&frames=450');
 ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in week plays to its end and opens round 2 with its event');
 console.log('browser checks passed:', n);

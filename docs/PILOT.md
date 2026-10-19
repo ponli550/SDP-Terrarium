@@ -9,7 +9,7 @@ Does a buyer or new owner use the Terrarium, and how far is its simulated month 
 New owners in one Elmina phase. SDP's own app already reaches owners (billing, documents, defect reports), so it is the natural channel. Whether SDP would use it for this is unasked.
 
 ## What a participant does
-1. **Week 0.** Pick the home type and enter the kWh from last month's bill. The model shows how far its own estimate was from that bill, then matches its base load to it. This is built.
+1. **Week 0.** Sign in, set the home's condition, place the lot, and enter the kWh from last month's bill. The model shows how far its own estimate was from that bill, then matches its base load to it. This is built.
 2. **Weeks 1 to 8.** Play the four-week month, choose habits, read the answers. Report short trips on foot each week.
 3. **Week 8.** Enter the latest bill and answer three questions, including whether the tool changed a decision.
 

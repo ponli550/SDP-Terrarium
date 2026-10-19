@@ -65,6 +65,10 @@
     where_from: { kind: 'read', describe: 'Where a number comes from and how sure it is.', params: { name: 1 }, run: function (a, ctx, b) {
       var x = T.ASSUME[a.name], i = b.cl({ kind: 'assumption', name: a.name });
       b.text.push('The value used is ' + fg(i, fnum(x.v, 3)) + ', described as: ' + fg(i, x.note) + '. Grade: ' + x.grade + '. ' + (x.grade === 'REAL' ? 'This comes from public data.' : x.grade === 'SOURCED' ? 'This has a published source.' : 'This is a placeholder to replace before any claim.'));
+      if (a.name === 'stopKm' && T.validLot(ctx.input.lot)) {   // the real figure is for the township centre; your lot has its own, scaled one
+        var li = T.lotInfo(ctx.input.lot), n = b.cl({ kind: 'lot', field: 'n', value: li.n }), k = b.cl({ kind: 'lot', field: 'km', value: Math.round(li.km * 100) / 100 });
+        b.text.push('From your lot, lot ' + fg(n, String(li.n)) + ', it is about ' + fg(k, fnum(li.km, 2)) + ' km. The township layout is a drawing, so that figure is scaled from the real one and is illustrative.');
+      }
     } },
     propose_change: { kind: 'write', describe: 'Draft a change for the person to confirm. Never applies it.', params: { lever: 1 }, run: function (a, ctx, b) {
       var lv = T.LEVERS.find(function (l) { return l.key === a.lever; }), ch = b.cl({ kind: 'change', lever: a.lever });
@@ -131,6 +135,7 @@
       case 'total': return Math.round(S.total) === c.value ? tokensOf(fnum(S.total, 0)) : null;
       case 'formula': { var q = S.pillars.find(function (x) { return x.key === c.key; }); return q ? tokensOf(q.formula) : null; }
       case 'lever': { var e = leverEffect(ctx.input, c.lever); if (!e || ['carbonKg', 'rm', 'comfortDrop'].indexOf(c.field) < 0) return null; var v = c.field === 'rm' && c.value === 0 && e.rm < 0 ? 0 : e[c.field]; return Math.round(v) === c.value ? tokensOf(fnum(Math.abs(c.value), 0)) : null; }
+      case 'lot': { var lt = T.lotInfo(ctx.input.lot); if (!lt) return null; return c.field === 'n' && lt.n === c.value ? [String(lt.n)] : c.field === 'km' && Math.round(lt.km * 100) / 100 === c.value ? tokensOf(fnum(lt.km, 2)) : null; }
       case 'assumption': { var a = T.ASSUME[c.name]; return a ? tokensOf(fnum(a.v, 3) + ' ' + a.note) : null; }
       case 'change': { var lv = T.LEVERS.find(function (l) { return l.key === c.lever; }); return lv ? tokensOf(lv.label) : null; }
       case 'count': return c.what === 'suggestions' && T.suggest(ctx.input, 5).length === c.value ? [String(c.value)] : null;
