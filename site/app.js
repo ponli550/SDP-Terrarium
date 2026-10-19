@@ -9,6 +9,58 @@
     '%': function (v) { return v.toFixed(0) + '%'; }, 'km': function (v) { return v.toFixed(2) + ' km'; },
     'trees': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
   };
+  // ---- sign-in, the saved home and the set-up dialog ----
+  var P = window.TerrariumProfile, session = null, store = null;
+  try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
+  var SHOT = /[?&]shot\b/.test(location.search);
+  var DEFAULT_STATE = function () { return Object.assign({}, T.DEFAULTS, { walkShare: 0.2 }); };
+  var WIZ = [['house', 'Home'], ['acHours', 'Air-con hours at night', 0, 12, 1, ' h'], ['setpoint', 'Setpoint', 22, 28, 1, ' C'], ['solarKwp', 'Rooftop solar', 0, 8, 1, ' kWp'], ['trees', 'Trees on your plot', 0, 10, 1, ''], ['nativeShare', 'Native planting', 0, 100, 10, '%']];
+  function wizardHtml() {
+    return WIZ.map(function (f) {
+      if (f[0] === 'house') return '<label for="w_house">' + f[1] + '</label><select id="w_house">' + Object.keys(T.HOUSES).map(function (k) { return '<option value="' + k + '">' + T.HOUSES[k].label + '</option>'; }).join('') + '</select>';
+      return '<label for="w_' + f[0] + '">' + f[1] + ' <span id="w_' + f[0] + 'V"></span></label><input type="range" id="w_' + f[0] + '" min="' + f[2] + '" max="' + f[3] + '" step="' + f[4] + '">';
+    }).join('');
+  }
+  function wizardSync() {
+    WIZ.forEach(function (f) {
+      var el = $('w_' + f[0]); if (!el) return;
+      var v = f[0] === 'nativeShare' ? Math.round(st.nativeShare * 100) : st[f[0]]; el.value = v;
+      if (f[0] !== 'house') $('w_' + f[0] + 'V').textContent = (f[0] === 'solarKwp' && !v ? 'none' : v + f[5]);
+    });
+  }
+  function saveProfile(setUp) { if (session) store.saveHome(P.pickHome(st), setUp); }
+  function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
+  function closeWizard() { $('wizard').hidden = true; }
+  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Leave' : 'Sign out'; } }
+  function startSession(s) {
+    session = s; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
+    if (st.billKwh === undefined) st.billKwh = null;
+    $('gate').hidden = true; showChip(); draft = null; render();
+    if (s.isNew || (s.setUp === false)) openWizard();
+  }
+  function showGate() { $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gateNote').textContent = store.isPersistent() ? 'Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.' : 'Your browser is blocking storage, so your home will not be kept after you close this page. This is a demo sign-in with no password.'; $('gate').hidden = false; $('gateEmail').focus(); }
+  $('wizFields').innerHTML = wizardHtml();
+  WIZ.forEach(function (f) {
+    $('w_' + f[0]).addEventListener(f[0] === 'house' ? 'change' : 'input', function (e) {
+      st[f[0]] = f[0] === 'house' ? e.target.value : (f[0] === 'nativeShare' ? +e.target.value / 100 : +e.target.value);
+      if (g && !g.weekly.length) g = T.newGame(st); render(); wizardSync();
+    });
+  });
+  $('gateForm').addEventListener('submit', function (e) {
+    e.preventDefault(); var r = store.signIn($('gateEmail').value);
+    if (!r.ok) { $('gateErr').textContent = r.reason; return; }
+    startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew });
+  });
+  $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
+  $('wizDone').addEventListener('click', function () { saveProfile(true); closeWizard(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('wizard').hidden) { saveProfile(true); closeWizard(); } });
+  $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
+  $('signOut').addEventListener('click', function () {
+    store.signOut(); session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
+    if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
+    closeWizard(); showChip(); render(); showGate();
+  });
+
   var sel = $('house');
   Object.keys(T.HOUSES).forEach(function (k) { var o = document.createElement('option'); o.value = k; o.textContent = T.HOUSES[k].label; sel.appendChild(o); });
 
@@ -77,6 +129,7 @@
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
     chart(s.you.days); gameView(input, s);
+    saveProfile(false); $('editHome').disabled = !!g;
     if (!scene) onClock(clockDay, 12);
   }
   function chart(days) {
@@ -198,6 +251,11 @@
     if (q0.has('rain')) { g = T.newGame(st); for (var w4 = 0; w4 < 4; w4++) g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); }
   }
   render();
+  if (SHOT) { session = Object.assign({ guest: true, setUp: true }, store.guest()); $('gate').hidden = true; showChip(); }   // screenshot mode keeps the URL's presets
+  else { var cur = store.current(); if (cur) startSession(cur); else showGate(); }
+  if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
+  if (SHOT && q0.has('wizard')) openWizard();
+  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }

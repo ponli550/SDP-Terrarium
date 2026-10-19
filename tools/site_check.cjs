@@ -8,9 +8,10 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 const html = read('index.html')
   .replace(/<script src="vendor\/[^"]*"><\/script>\s*/g, '').replace(/<script src="scene.js"><\/script>\s*/, '')
   .replace('<script src="logic.js"></script>', '<script>' + read('logic.js') + '</script>')
+  .replace('<script src="profile.js"></script>', '<script>' + read('profile.js') + '</script>')
   .replace('<script src="assistant.js"></script>', '<script>' + read('assistant.js') + '</script>')
   .replace('<script src="app.js"></script>', '<script>' + read('app.js') + '</script>');
-const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true });
+const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
 const w = dom.window, $ = (id) => w.document.getElementById(id);
 const setRange = (id, v) => { const e = $(id); e.value = v; e.dispatchEvent(new w.Event('input', { bubbles: true })); };
 
@@ -102,4 +103,38 @@ bill(700); ok(kwhFig().querySelector('.badge').textContent === 'REAL', 'matching
 $('billReset').click(); ok(kwhFig().querySelector('.badge').textContent === 'ILLUSTRATIVE' && $('billOut').innerHTML === '' && $('billKwh').value === '', 'reset returns to the simulated month');
 bill(700); $('gStart').click(); ok($('billKwh').disabled && $('billReset').disabled, 'the bill card is locked during a game'); $('gQuit').click(); ok(!$('billKwh').disabled, 'and unlocks when the game ends');
 $('billReset').click();
+// sign-in, the saved home, the set-up dialog
+const submitGate = (email) => { $('gateEmail').value = email; $('gateForm').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); };
+const stored = () => JSON.parse(w.localStorage.getItem('terrarium.v1') || '{"users":{}}');
+const val = (id) => $(id).value;
+ok(!$('gate').hidden && $('wizard').hidden && $('userChip').hidden, 'a visitor with no session sees the sign-in gate first');
+ok(w.document.getElementById('gate').getAttribute('role') === 'dialog' && w.document.getElementById('gate').getAttribute('aria-modal') === 'true', 'the gate is an accessible dialog');
+ok($('gateNote').textContent.includes('no password') && $('gateNote').textContent.includes('nothing leaves this browser'), 'the demo sign-in says plainly that it has no password');
+submitGate('not an email'); ok(!$('gate').hidden && /valid email/.test($('gateErr').textContent), 'a bad email is refused with a reason and the gate stays');
+submitGate('Ali@Example.com');
+ok($('gate').hidden && !$('wizard').hidden && $('userName').textContent === 'ali@example.com' && !$('userChip').hidden, 'a first sign-in opens the home set-up and shows who is signed in');
+ok(val('w_house') === 'terrace' && val('w_trees') === '2', 'the set-up starts from the defaults');
+const setW = (id, v, ev) => { const e = $(id); e.value = v; e.dispatchEvent(new w.Event(ev || 'input', { bubbles: true })); };
+setW('w_house', 'condo', 'change'); setW('w_solarKwp', 4); setW('w_trees', 7); setW('w_nativeShare', 60);
+ok(val('house') === 'condo' && val('solarKwp') === '4' && val('trees') === '7' && val('nativeShare') === '60', 'the set-up dialog edits the same home the page shows');
+ok($('pillars').textContent.includes('Urban Biodiversity'), 'and the scores follow it');
+$('wizDone').click();
+ok($('wizard').hidden, 'Save home closes the dialog');
+ok(stored().users['ali@example.com'].home.house === 'condo' && stored().users['ali@example.com'].home.solarKwp === 4 && stored().users['ali@example.com'].setUp === true, 'the home is saved in this browser and marked set up');
+setRange('trees', 9); ok(stored().users['ali@example.com'].home.trees === 9, 'editing on the page autosaves');
+$('editHome').click(); ok(!$('wizard').hidden && val('w_trees') === '9' && val('w_house') === 'condo', 'Edit home reopens the dialog with the saved values');
+w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok($('wizard').hidden, 'Escape closes it');
+$('signOut').click();
+ok(!$('gate').hidden && $('userChip').hidden && val('house') === 'terrace' && val('trees') === '2', 'signing out shows the gate and clears the home from the page');
+submitGate('ali@example.com');
+ok($('gate').hidden && $('wizard').hidden && val('house') === 'condo' && val('trees') === '9' && val('solarKwp') === '4', 'signing back in restores the saved home and skips the set-up');
+$('signOut').click(); submitGate('bo@example.com');
+ok(!$('wizard').hidden && val('house') === 'terrace' && val('trees') === '2', 'a different person starts with their own empty home');
+$('wizDone').click(); $('signOut').click(); submitGate('ali@example.com'); ok(val('house') === 'condo', 'and the first person\'s home is untouched');
+$('gStart').click(); ok($('editHome').disabled, 'Edit home is locked during a game'); $('gQuit').click(); ok(!$('editHome').disabled, 'and unlocks after');
+const usersBefore = JSON.stringify(stored().users); $('signOut').click(); $('gateGuest').click();
+ok(!$('wizard').hidden && $('userName').textContent === 'Guest' && $('signOut').textContent === 'Leave', 'a guest sees the set-up and is labelled a guest');
+setW('w_house', 'semid', 'change'); setRange('trees', 5); $('wizDone').click();
+ok(JSON.stringify(stored().users) === usersBefore && !/semid/.test(w.localStorage.getItem('terrarium.v1')), 'nothing about the guest is written to storage');
+$('signOut').click(); ok(!$('gate').hidden, 'leaving returns to the gate');
 console.log('site checks passed:', n);
