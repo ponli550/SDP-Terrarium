@@ -7,7 +7,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --test tests/model.test.js tests/assistant.test.js && node tools/site_check.cjs"
+    "test": "node --test tests/model.test.js tests/assistant.test.js && node tools/site_check.cjs",
+    "test:browser": "node tools/browser_check.cjs"
   },
   "type": "commonjs",
   "devDependencies": {

@@ -13,6 +13,8 @@ Rule: every figure is tagged REAL (public data, cited), SOURCED (an assumption w
 
 Only REAL figure so far: 0.93 km from Elmina's centre to the nearest public transit stop (data.gov.my GTFS feeds; the centre is approximate and the distance is straight-line). The tariff, carbon factor, air-con and shade maths and scoring formulas are placeholders.
 
-Not built: the carbon analysis layer (a sourced grid factor, embodied carbon by home type), an LLM planner for the assistant, click-to-inspect and follow-a-resident in the scene, a scheduled-departures panel. The live bus feed returned nothing when tested, so any bus shown is illustrative.
+Built since: click-to-inspect (home, neighbour, stop, bus, corridor, solar, a walker, a car) with graded rows, and a follow-a-trip camera. Following covers one trip, not a resident's whole day.
+
+Not built: the carbon analysis layer (a sourced grid factor, embodied carbon by home type), an LLM planner for the assistant, a scheduled-departures panel. The live bus feed returned nothing when tested, so any bus shown is illustrative.
 
 Open gates: team of 3-5 with one coder, eligibility, registration by Wed 21 Oct, one recent-buyer conversation.

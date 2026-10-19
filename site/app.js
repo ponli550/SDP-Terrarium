@@ -1,7 +1,7 @@
 (function () {
   var T = window.Terrarium;
   var st = Object.assign({}, T.DEFAULTS, { walkShare: 0.2 });
-  var g = null, draft = null, anim = null, scene = null, speed = 4, clockDay = 1, sim = null;
+  var g = null, draft = null, anim = null, scene = null, speed = 4, clockDay = 1, sim = null, inspected = null, lastClk = { day: 1, hour: 6 }, lastInspHour = -1;
   var $ = function (id) { return document.getElementById(id); };
   var fmt = {
     'RM': function (v) { return 'RM ' + v.toFixed(0); }, 'kWh': function (v) { return v.toFixed(0) + ' kWh'; },
@@ -16,18 +16,30 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, onInspect: onInspect, picks: q.get('picks') ? q.get('picks').split(',') : null, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
     $('stage').appendChild(m); scene = null;
   }
 
+  // ---- the inspect panel: click anything in the scene ----
+  function onInspect(kind) { inspected = kind; lastInspHour = -1; renderInspect(); }
+  function renderInspect() {
+    var box = $('inspect'), info = inspected && T.inspectInfo(inspected, currentInput(), lastClk);
+    if (!info) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<button class="x" id="inspClose" aria-label="Close">&times;</button><div class="it">' + esc(info.title) + '</div><table>' +
+      info.rows.map(function (r) { return '<tr><td>' + esc(r.k) + '<span class="badge ' + r.grade + '">' + r.grade + '</span></td><td>' + esc(r.v) + '</td></tr>'; }).join('') + '</table>' +
+      info.facts.map(function (f) { return '<div class="f">' + esc(f) + '</div>'; }).join('');
+    $('inspClose').onclick = function () { if (scene) scene.select(null); else onInspect(null); };
+  }
   function currentInput() { return g ? T.gameInput(g) : st; }
   function weekRange(w) { return [w * 7 + 1, w === 3 ? 30 : w * 7 + 7]; }
 
   // ---- heads-up display ----
   function onClock(day, hour) {
+    lastClk = { day: day, hour: hour }; if (inspected && Math.floor(hour) !== lastInspHour) { lastInspHour = Math.floor(hour); renderInspect(); }
     var input = currentInput(), d = sim.days[day - 1] || sim.days[29];
     var kwhToday = d.netKwh * hour / 24, before = 0;
     for (var i = 0; i < day - 1; i++) before += sim.days[i].netKwh;
@@ -154,6 +166,11 @@
     b.addEventListener('click', function () { speed = +b.dataset.speed; if (scene) scene.setSpeed(speed); document.querySelectorAll('[data-speed]').forEach(function (x) { x.classList.toggle('on', x === b); }); });
   });
   $('play').addEventListener('click', function () { if (!scene) return; if (scene.isRunning()) { scene.pause(); $('play').textContent = 'Play'; $('play').classList.remove('on'); } else { scene.play(); $('play').textContent = 'Pause'; $('play').classList.add('on'); } });
+  $('follow').addEventListener('click', function () {
+    if (!scene) return; var on = !scene.isFollowing(), r = scene.follow(on);
+    $('follow').textContent = on ? 'Stop following' : 'Follow a trip'; $('follow').classList.toggle('on', on);
+    if (on && r.note) $('legend').textContent = r.note;
+  });
   $('skip').addEventListener('click', function () { if (anim && scene) scene.skipTo(weekRange(anim.week)[1]); });
 
   var q0 = new URLSearchParams(location.search);
@@ -167,7 +184,10 @@
   }
   render();
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
+  if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
-  else if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(+(new URLSearchParams(location.search).get('day') || 1), +(new URLSearchParams(location.search).get('hour') || 6)); scene.play(); }
-  window.__terrarium = { scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
+  else if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(+(new URLSearchParams(location.search).get('day') || 1), +(new URLSearchParams(location.search).get('hour') || 6)); scene.play();
+    if (q0.has('shot') && q0.has('inspect')) scene.select(q0.get('inspect'));
+    if (q0.has('shot') && q0.has('follow')) { scene.follow(true); $('follow').textContent = 'Stop following'; $('follow').classList.add('on'); } }
+  window.__terrarium = { inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
 })();

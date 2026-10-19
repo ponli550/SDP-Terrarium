@@ -183,3 +183,31 @@ test('scene trip counts match the model walking minutes', () => {
   assert.ok(Math.abs(t.walk - 0.4 * modelTrips) <= 1.5);
   assert.ok(Math.abs(t.walk * 2 * T.ASSUME.stopKm.v * T.ASSUME.walkMinKm.v - f.walkMin.value) <= 2 * T.ASSUME.stopKm.v * T.ASSUME.walkMinKm.v * 1.5);
 });
+
+const INSPECT_KINDS = ['home', 'neighbour', 'stop', 'bus', 'corridor', 'solar', 'person', 'car'];
+test('every clickable thing has a titled panel with graded rows and at least one fact', () => {
+  const input = Object.assign({}, T.DEFAULTS, { solarKwp: 3 }), ok = new Set(Object.values(T.GRADE));
+  for (const k of INSPECT_KINDS) {
+    const i = T.inspectInfo(k, input, { day: 3, hour: 21 });
+    assert.ok(i && i.title && i.rows.length && i.facts.length, k);
+    for (const r of i.rows) { assert.ok(ok.has(r.grade), k + ' ' + r.k); assert.ok(r.v !== undefined && !/undefined|NaN/.test(String(r.v)), k + ' ' + r.k + ' = ' + r.v); }
+  }
+  assert.strictEqual(T.inspectInfo('nothing', input), null);
+});
+test('only measured or cited rows are graded REAL', () => {
+  const real = [];
+  for (const k of INSPECT_KINDS) for (const r of T.inspectInfo(k, T.DEFAULTS, { day: 1, hour: 9 }).rows) if (r.grade === 'REAL') real.push(k + ':' + r.k);
+  assert.deepStrictEqual(real.sort(), ['corridor:Trees planted along a 500 m stretch', 'person:Distance each way', 'stop:Distance from the township centre', 'stop:Nearest rail station']);
+});
+test('the home panel agrees with the model: air-con state, solar and today\'s use', () => {
+  const input = Object.assign({}, T.DEFAULTS, { acHours: 6, solarKwp: 2 }), get = (hour, k) => T.inspectInfo('home', input, { day: 3, hour: hour }).rows.find((r) => r.k === k).v;
+  assert.strictEqual(get(21, 'Air-con now'), 'On'); assert.strictEqual(get(12, 'Air-con now'), 'Off');
+  assert.strictEqual(get(12, 'Rooftop solar'), '2 kWp');
+  const d = T.simulate(input).days[2];
+  assert.strictEqual(get(12, 'Used so far today'), (d.netKwh * 12 / 24).toFixed(1) + ' kWh');
+});
+test('the stop and walking panels use the same real distance as the model', () => {
+  assert.strictEqual(T.inspectInfo('stop', T.DEFAULTS).rows[0].v, T.ASSUME.stopKm.v + ' km');
+  assert.strictEqual(T.inspectInfo('person', T.DEFAULTS).rows.find((r) => r.k === 'Walking time each way').v, (T.ASSUME.stopKm.v * T.ASSUME.walkMinKm.v).toFixed(0) + ' min');
+  assert.ok(Math.abs(Number(T.inspectInfo('car', T.DEFAULTS).rows.find((r) => r.k === 'Carbon for this trip').v.split(' ')[0]) - 2 * T.ASSUME.stopKm.v * T.ASSUME.carKgKm.v) < 0.006);
+});

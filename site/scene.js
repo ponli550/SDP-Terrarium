@@ -54,7 +54,7 @@
     add(scene, box(80, 0.1, 2.2), M(0xcdc6b3), 8, 0.06, 8.2, false); // footpath to the stop
 
     // ---------- the bus stop (0.93 km away: REAL distance, drawn compressed) ----------
-    var stop = new THREE.Group(); stop.position.set(50, 0, 10); scene.add(stop);
+    var stop = new THREE.Group(); stop.position.set(50, 0, 10); stop.userData.inspect = 'stop'; scene.add(stop);
     add(stop, box(7, 0.4, 4), M(0xbdb7a6), 0, 0.2, 0);
     [-3, 3].forEach(function (x) { add(stop, box(0.4, 4, 0.4), M(0x37474f), x, 2.2, -1.4); });
     add(stop, box(8, 0.5, 4.4), M(0x2e6b34), 0, 4.4, 0);
@@ -77,7 +77,7 @@
       add(g, new THREE.SphereGeometry(2, 8, 6), M(0xb5d96b), 0, 4.6, 0);
       return g;
     }
-    var rr = rnd(42), corridor = new THREE.Group(); scene.add(corridor);
+    var rr = rnd(42), corridor = new THREE.Group(); corridor.userData.inspect = 'corridor'; scene.add(corridor);
     for (var c = -105; c <= 105; c += 5.5) { nativeTree(corridor, c + rr() * 2, -72 + rr() * 3, 1.2 + rr() * 0.5, 100 + c); nativeTree(corridor, c + rr() * 2, -86 - rr() * 3, 1.3 + rr() * 0.5, 300 + c); }
     for (var b = 0; b < 70; b++) { var bx = -110 + rr() * 220, bz = 34 + rr() * 80; if (rr() > 0.5) ornamentalTree(scene, bx, bz, 1 + rr() * 0.4); else nativeTree(scene, bx, bz, 1 + rr() * 0.4, 500 + b); }
 
@@ -114,7 +114,7 @@
     var neighbours = [[-58, -10, 0], [-44, -10, 1], [-30, -10, 2], [12, -10, 3], [26, -10, 4], [-58, -42, 5], [-40, -42, 1], [-22, -42, 0], [-4, -42, 2], [14, -42, 3], [32, -42, 4]];
     neighbours.forEach(function (n, i) {
       var t = building(i % 5 === 3 ? 'semid' : 'terrace', homePalette[n[2] % homePalette.length], false);
-      t.position.set(n[0], 0, n[1]); homes.add(t);
+      t.userData.inspect = 'neighbour'; t.position.set(n[0], 0, n[1]); homes.add(t);
       if (i % 3 === 0) ornamentalTree(homes, n[0] + 8, n[1] + 11, 0.9);
     });
     var PLOT = [[-22, 2], [-3, 3], [-20, -22], [0, -23], [-26, -10], [6, -10], [-16, 4], [-5, 4], [-24, -4], [3, -2]];
@@ -125,11 +125,12 @@
       if (key === mineKey) return; mineKey = key;
       if (mine) homes.remove(mine);
       if (ring) scene.remove(ring);
-      mine = building(input.house, 0xfff1cf, true);
+      mine = building(input.house, 0xfff1cf, true); mine.userData.inspect = 'home';
       mine.position.set(HOME_POS.x, 0, HOME_POS.z); homes.add(mine);
       pin.userData.baseY = mine.userData.roof.y + 8;
       ring = add(scene, new THREE.RingGeometry(14, 15.5, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
       ring.rotation.x = -Math.PI / 2;
+      panels.userData.inspect = 'solar';
       while (panels.children.length) panels.remove(panels.children[0]);
       var roof = mine.userData.roof, n = Math.round(input.solarKwp), cols = roof.type === 'condo' ? 3 : 4;
       for (var p = 0; p < n; p++) {
@@ -143,6 +144,58 @@
         var pos = PLOT[t % PLOT.length], x = HOME_POS.x + pos[0] + 10, z = HOME_POS.z + pos[1] + 6;
         if (t < native) nativeTree(plotTrees, x, z, 1.15, 900 + t); else ornamentalTree(plotTrees, x, z, 1.05);
       }
+    }
+
+
+    // ---------- picking and selection ----------
+    var ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), downAt = null, selected = null, outline = new THREE.BoxHelper(new THREE.Object3D(), 0xffd54f);
+    outline.visible = false; scene.add(outline);
+    function tagged(o) { while (o && !(o.userData && o.userData.inspect)) o = o.parent; return o || null; }
+    function pickNdc(nx, ny) {
+      ptr.set(nx, ny); ray.setFromCamera(ptr, camera);
+      var hits = ray.intersectObjects(scene.children, true);
+      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === outline || o.type === 'Points' || o.type === 'LineSegments') continue; return tagged(o); }
+      return null;
+    }
+    function select(o) {
+      selected = o; outline.visible = !!o;
+      if (o) outline.setFromObject(o);
+      if (hooks.onInspect) hooks.onInspect(o ? o.userData.inspect : null, o);
+    }
+    var el = renderer.domElement;
+    el.addEventListener('pointerdown', function (e) { downAt = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener('pointerup', function (e) {
+      if (!downAt) return; var moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); downAt = null; if (moved > 5) return;
+      var r = el.getBoundingClientRect(); select(pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1));
+    });
+    function objectsByKind() {
+      return { home: mine, neighbour: homes.children[0], stop: stop, bus: busObj.obj, corridor: corridor.children[10], solar: panels.children[0],
+               person: (agents.filter(function (a) { return a.kind === 'walk'; })[0] || {}).obj, car: (agents.filter(function (a) { return a.kind === 'car'; })[0] || {}).obj };
+    }
+    // Projects a known object to the screen and picks there: proves a real click on it would land on it.
+    function debugPick(kind) {
+      if (kind === 'occluded') {   // an untagged block placed between the camera and your home must hide it from a click
+        var blk = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), M(0x888888)), cc = new THREE.Box3().setFromObject(mine).getCenter(new THREE.Vector3());
+        blk.position.copy(camera.position.clone().lerp(cc, 0.5)); scene.add(blk); blk.updateMatrixWorld(true); camera.updateMatrixWorld(true);
+        var pr = cc.clone().project(camera), hitB = pickNdc(pr.x, pr.y); scene.remove(blk); return hitB ? hitB.userData.inspect : 'none';
+      }
+      var o = objectsByKind()[kind]; if (!o) return 'absent';
+      var box = new THREE.Box3().setFromObject(o), c = box.getCenter(new THREE.Vector3()); c.project(camera);
+      var hit = pickNdc(c.x, c.y); return hit ? hit.userData.inspect : 'none';
+    }
+
+    // ---------- follow a trip ----------
+    var following = false, DEFAULT_CAM = new THREE.Vector3(64, 62, 84), DEFAULT_TGT = new THREE.Vector3(8, 0, -8), returning = 0, offset = new THREE.Vector3(24, 18, 26);
+    function newestAgent() { return agents.length ? agents[agents.length - 1].obj : null; }
+    function nextTripMoment(day, hour) {
+      // the next time any trip leaves, so following does not mean waiting through empty days
+      var d = day, h = hour;
+      for (var guard = 0; guard < 60; guard++) {
+        var trips = T.tripsOnDay(d, input || T.DEFAULTS);
+        for (var k = 0; k < trips.length; k++) if (trips[k].hour - 0.2 > (d === day ? h : -1)) return { day: d, hour: trips[k].hour - 0.2 };
+        d++; if (d > range.to) d = range.from;
+      }
+      return null;
     }
 
     // ---------- people, cars, bus ----------
@@ -172,11 +225,11 @@
     function spawnTrip(mode, index) {
       var door = { x: HOME_POS.x - 3, z: HOME_POS.z + 10 };
       if (mode === 'walk') {
-        var o = person(index % 2 ? 0xe57373 : 0x4fc3f7); o.position.set(door.x, 0, door.z); scene.add(o);
+        var o = person(index % 2 ? 0xe57373 : 0x4fc3f7); o.userData.inspect = 'person'; o.position.set(door.x, 0, door.z); scene.add(o);
         var path = [door, { x: door.x, z: 8.2 }, { x: 48, z: 8.2, wait: 2.2 }, { x: door.x, z: 8.2 }, door];
         o.position.set(door.x, 0, door.z); agents.push({ obj: o, path: path, i: 0, speed: 9, wait: 0, kind: 'walk' });
       } else {
-        var cc = car(index % 2 ? 0xef6c00 : 0x5c6bc0); cc.position.set(door.x + 4, 0, door.z + 1); scene.add(cc);
+        var cc = car(index % 2 ? 0xef6c00 : 0x5c6bc0); cc.userData.inspect = 'car'; cc.position.set(door.x + 4, 0, door.z + 1); scene.add(cc);
         var cp = [{ x: door.x + 4, z: door.z + 1 }, { x: door.x + 4, z: 18 }, { x: 108, z: 18 }, { x: door.x + 4, z: 18 }, { x: door.x + 4, z: door.z + 1 }];
         agents.push({ obj: cc, path: cp, i: 0, speed: 34, wait: 0, kind: 'car' });
       }
@@ -188,7 +241,7 @@
       add(g, box(10.4, 1.2, 3.25), M(0xbbdefb), 0, 3.2, 0, false);
       add(g, box(11.1, 0.5, 3.3), M(0xffffff), 0, 1.4, 0, false);
       [[-3.5, -1.5], [3.5, -1.5], [-3.5, 1.5], [3.5, 1.5]].forEach(function (w) { add(g, new THREE.CylinderGeometry(0.8, 0.8, 0.5, 10), M(0x212121), w[0], 0.8, w[1]).rotation.x = Math.PI / 2; });
-      g.position.set(-110, 0, 20.5); scene.add(g);
+      g.userData.inspect = 'bus'; g.position.set(-110, 0, 20.5); scene.add(g);
       busObj = { obj: g, dir: 1, x: -110, wait: 0, stopped: false };
     })();
     function updateBus(dt) {
@@ -222,9 +275,10 @@
       var w = container.clientWidth, h = container.clientHeight;
       labels.forEach(function (l) {
         l.obj.getWorldPosition(v); v.y += l.dy; v.project(camera);
-        var vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+        var px = (v.x + 1) / 2 * w, hw = (l.el.offsetWidth || 120) / 2 + 6;
+        var vis = v.z < 1 && px > hw && px < w - hw && Math.abs(v.y) < 1.05;   // the whole label must fit inside the stage
         l.el.style.display = vis ? '' : 'none';
-        if (vis) l.el.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w) + 'px,' + ((1 - v.y) / 2 * h) + 'px)';
+        if (vis) l.el.style.transform = 'translate(-50%,-100%) translate(' + px + 'px,' + ((1 - v.y) / 2 * h) + 'px)';
       });
     }
 
@@ -269,10 +323,16 @@
       for (var a = agents.length - 1; a >= 0; a--) { followPath(agents[a], dt * (0.6 + sp * 0.4)); if (agents[a].done) { scene.remove(agents[a].obj); agents.splice(a, 1); } }
       updateBus(dt * (0.6 + sp * 0.4));
       pin.position.set(HOME_POS.x, (pin.userData.baseY || 14) + Math.sin(now / 400) * 0.8, HOME_POS.z);
+      if (selected) { if (!selected.parent) select(null); else outline.setFromObject(selected); }
+      if (following) { var tg = newestAgent(); if (tg) { controls.target.lerp(tg.position, 0.12); camera.position.lerp(tg.position.clone().add(offset), 0.06); } }
+      else if (returning > 0) { returning -= dt; controls.target.lerp(DEFAULT_TGT, 0.08); camera.position.lerp(DEFAULT_CAM, 0.06); }
       controls.update(); placeLabels();
       renderer.render(scene, camera);
       if (hooks.maxFrames && frames >= hooks.maxFrames) {
         root.__shotDone = true;
+        var nt = newestAgent();
+        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)) });
+        if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
         return;
       }
@@ -296,6 +356,15 @@
       isRunning: function () { return running; },
       skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
       clock: function () { return { day: clock.day, hour: clock.hour }; },
+      select: function (kind) { select(kind ? objectsByKind()[kind] || null : null); },
+      debugPick: debugPick,
+      follow: function (on) {
+        following = !!on; if (!on) { returning = 3; return { following: false }; }
+        if (!newestAgent() && !running) return { following: true, waiting: false, note: 'press play, then follow' };
+        if (!newestAgent()) { var m = nextTripMoment(clock.day, clock.hour); if (m && (m.day <= range.to)) { agents.forEach(function (a) { scene.remove(a.obj); }); agents = []; clock.day = m.day; clock.hour = m.hour; emit(); } }
+        return { following: true, waiting: !newestAgent() };
+      },
+      isFollowing: function () { return following; },
       stats: function () { return { agents: agents.length, labels: labels.length }; },
       renderer: renderer,
     };
