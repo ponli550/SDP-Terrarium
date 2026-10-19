@@ -110,3 +110,9 @@ test('verifier: a bare claim of an unknown kind is withheld even with no figure 
   const r = bad(() => base(['Nothing numeric here.'], [{ kind: 'magic', value: 1 }]));
   assert.ok(r.withheld && r.problems.some((p) => /not supported/.test(p)));
 });
+test('after a bill is matched, the briefing says so and keeps the other figures illustrative; the answer still verifies', () => {
+  const input = Object.assign({}, T.DEFAULTS), c = T.calibrate(input, 700), billed = { input: Object.assign({}, input, { baseScale: c.baseScale, billKwh: 700 }) };
+  const r = A.ask('give me the briefing', billed), t = words(r);
+  assert.ok(!r.withheld && t.includes('This month your home uses 700 kWh') && t.includes('matched to your own bill') && !t.includes('illustrative until a real home'));
+  const plain = words(A.ask('give me the briefing', { input: input })); assert.ok(plain.includes('illustrative until a real home') && !plain.includes('matched to your own bill'));
+});

@@ -71,6 +71,8 @@
     $('figs').innerHTML = Object.keys(f).map(function (k) { var x = f[k], n = nb[k]; var cmp = (k === 'stopKm' || !n) ? '' : '<small>neighbour ' + fmt[x.unit](n.value) + '</small>'; return '<div class="fig"><small>' + x.label + '<span class="badge ' + x.grade + '">' + x.grade + '</span></small><b>' + fmt[x.unit](x.value) + '</b>' + cmp + '</div>'; }).join('');
     ['acHours', 'setpoint', 'walkShare'].forEach(function (k) { $(k).disabled = !!g; });
     ['house', 'solarKwp', 'trees', 'nativeShare', 'hotWeek'].forEach(function (k) { $(k).disabled = !!(g && g.weekly.length); });
+    $('billKwh').disabled = $('billReset').disabled = $('billForm').querySelector('button[type=submit]').disabled = !!g;
+    billView(f);
     $('skip').hidden = !anim;
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
@@ -132,6 +134,19 @@
     $('gLock').onclick = function () { var w = g.weekly.length; g = T.play(g, draft); draft = null; startWeekAnimation(w); render(); };
     $('gQuit').onclick = function () { g = null; draft = null; anim = null; if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.play(); } render(); };
   }
+
+  // ---- after handover: the owner's own bill replaces the simulated month ----
+  function billView(f) {
+    if (st.billKwh == null) return;
+    if (Math.abs(f.monthKwh.value - st.billKwh) >= 1) $('billOut').innerHTML = '<p class="chk bad">The home or its settings changed since you matched your bill, so the electricity figures are simulated again. Press Match to line them up.</p>';
+  }
+  $('billForm').addEventListener('submit', function (e) {
+    e.preventDefault(); var out = $('billOut'), v = +$('billKwh').value, r = T.calibrate(Object.assign({}, st, { baseScale: 1, billKwh: null }), v);
+    if (!r.ok) { out.innerHTML = '<p class="chk bad">' + esc(r.reason) + '</p>'; return; }
+    st.baseScale = r.baseScale; st.billKwh = r.billKwh; render();
+    out.innerHTML = '<p>Your bill: <b>' + r.billKwh.toFixed(0) + ' kWh</b>. The model\'s own estimate for this home was ' + r.simulatedKwh.toFixed(0) + ' kWh, ' + Math.abs(r.gapPct).toFixed(0) + '% ' + (r.gapPct >= 0 ? 'below' : 'above') + ' your real month. The base load (everything that is not air-con) was scaled by ' + r.baseScale.toFixed(2) + ' so the month matches.</p><p class="chk">The electricity figure is now graded REAL. One bill cannot say why a home differs from the model, so the air-con, walking and tree figures stay illustrative.</p>';
+  });
+  $('billReset').addEventListener('click', function () { st.baseScale = 1; st.billKwh = null; $('billKwh').value = ''; $('billOut').innerHTML = ''; render(); });
 
   // ---- the assistant: every answer is checked against the model before it is shown ----
   var AI = window.TerrariumAI;

@@ -58,17 +58,23 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (31 automated tests), the 3D township, the weekly game, and 26 browser checks. Public data only; no SDP data.
+A working prototype in the browser: a tested model (66 automated tests), the 3D township, the weekly game, 56 page checks and 15 checks in a real browser. Public data only; no SDP data.
 
-**Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. Only the 0.93 km is real.
+**Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 
-**Proposed pilot:** one township, a small group of new owners, 8 weeks, with each home's real meter replacing the simulated figures. Cost and partners are not yet confirmed.
+A pilot is proposed on a later slide. Nothing is agreed with SDP yet.
 
 ## Value for SDP
 
-A buyer who sees their running cost can decide with confidence. After handover the same model becomes a dashboard for the home, fed by the real meter.
+A buyer who sees their running cost can decide with confidence. After handover the same model takes the owner's own bill: they type the kWh, and the electricity figure becomes real.
 
 It replicates by swapping a township's stops, tariff and trees. **Links to SDP's PRIME rewards and to mall visits are hypotheses we have not tested.**
+
+## After handover: your real bill
+
+Once an owner lives in the home, they enter the kWh on their bill. The model shows how far its estimate was, matches itself to that month, and **the electricity figure is graded real. Everything else stays illustrative.**
+
+**Proposed pilot:** eight weeks, one Elmina phase, new owners, measuring uptake and model error. **It cannot show savings:** a 2% nudge is far below the month-to-month swing in a few dozen bills. Cost, partners and consent wording are not agreed.
 
 ## What we have, what we do not
 
