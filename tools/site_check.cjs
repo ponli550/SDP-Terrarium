@@ -76,4 +76,14 @@ ask('what should I change first?'); $('askOut').querySelector('[data-dismiss]').
 $('gStart').click(); ask('what should I change first?');
 const ap = $('askOut').querySelector('[data-apply]'); if (ap) { ap.click(); ok($('askOut').textContent.includes('Quit the game first'), 'apply is blocked during a game'); }
 $('gQuit').click();
+// the inspect panel (in the browser a click on the scene calls this; jsdom has no scene to click)
+ok($('inspect').hidden, 'the inspect panel starts closed');
+w.__terrarium.inspect('stop');
+ok(!$('inspect').hidden && $('inspect').textContent.includes('Bus stop') && $('inspect').textContent.includes('0.93 km'), 'the stop panel opens with the real distance');
+ok($('inspect').textContent.includes('drawn compressed') && $('inspect').textContent.includes('no real-time bus'), 'the panel shows its fact lines');
+ok($('inspect').querySelectorAll('.badge.REAL').length === 2 && !/undefined|NaN/.test($('inspect').textContent), 'it grades its figures and shows no broken values');
+$('inspClose').click(); ok($('inspect').hidden && $('inspect').innerHTML === '', 'close empties and hides it');
+w.__terrarium.inspect('car'); ok($('inspect').textContent.includes('driving') && $('inspect').querySelectorAll('.badge.ILLUSTRATIVE').length >= 2, 'a car panel shows illustrative figures as such');
+w.__terrarium.inspect('nothing'); ok($('inspect').hidden, 'an unknown kind shows nothing');
+ok($('follow') && $('follow').textContent === 'Follow a trip', 'the follow button is there');
 console.log('site checks passed:', n);

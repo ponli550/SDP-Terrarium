@@ -17,6 +17,7 @@
     carRmKm:     { v: 0.30, grade: GRADE.ILLUSTRATIVE, note: 'car running cost, RM per km' },
     walkMinKm:   { v: 12,   grade: GRADE.ILLUSTRATIVE, note: 'walking pace, minutes per km' },
     tripsWeek:   { v: 10,   grade: GRADE.ILLUSTRATIVE, note: 'short trips per week within about 1 km' },
+    railKm:      { v: 5.4,  grade: GRADE.REAL, note: 'Elmina centre to nearest rail station, data.gov.my GTFS feeds; centre is approximate, straight line' },
     shadePerTree: { v: 0.01, grade: GRADE.ILLUSTRATIVE, note: 'air-con energy saved per shade tree on the plot, capped at 10%' },
     corridorTrees: { v: 1450, grade: GRADE.REAL, note: 'trees planted along a 500 m stretch of the Elmina Urban Biodiversity Corridor, SDP 2024 sustainability highlights slide' },
     nudgeCap:    { v: 0.02, grade: GRADE.SOURCED, note: 'average electricity cut from home energy reports, Allcott 2011, about 2.0%' },
@@ -158,6 +159,43 @@
     return { walk, car };
   }
 
+
+  // ---- what the inspect panel shows when something in the scene is clicked. Pure, so it can be tested. ----
+  function inspectInfo(kind, input, clk, extra) {
+    clk = clk || { day: 1, hour: 12 }; extra = extra || {};
+    const sim = simulate(input), d = sim.days[clk.day - 1] || sim.days[29], ch = choiceOnDay(input, clk.day);
+    const row = (k, v, grade) => ({ k: k, v: v, grade: grade || GRADE.ILLUSTRATIVE });
+    const kwhToday = d.netKwh * clk.hour / 24, wx = weatherAt(clk.day, clk.hour, input), native = Math.round(input.trees * input.nativeShare);
+    const trip = { walkKm: ASSUME.stopKm.v, walkMin: ASSUME.stopKm.v * ASSUME.walkMinKm.v, carKm: 2 * ASSUME.stopKm.v };
+    switch (kind) {
+      case 'home': return { title: (HOUSES[input.house] || HOUSES.terrace).label + ', your home', rows: [
+        row('Air-con now', acIsOn(clk.hour, ch.acHours) ? 'On' : 'Off'), row('Air-con at night', ch.acHours + ' h at ' + ch.setpoint + ' C'),
+        row('Rooftop solar', input.solarKwp ? input.solarKwp + ' kWp' : 'none'), row('Trees on the plot', input.trees + ' (' + native + ' native)'),
+        row('Used so far today', kwhToday.toFixed(1) + ' kWh'), row('Weather now', wx.label + ', ' + wx.temp.toFixed(0) + ' C')],
+        facts: ['Every figure here comes from the simulation and is illustrative until a real home replaces it.'] };
+      case 'neighbour': return { title: 'A neighbour\'s home', rows: [
+        row('Air-con at night', NEIGHBOUR.acHours + ' h at ' + NEIGHBOUR.setpoint + ' C'), row('Rooftop solar', 'none'), row('Trees on the plot', NEIGHBOUR.trees + ' (' + Math.round(NEIGHBOUR.trees * NEIGHBOUR.nativeShare) + ' native)')],
+        facts: ['All neighbours stand for one fixed illustrative household. Your scores are measured against it.'] };
+      case 'stop': return { title: 'Bus stop', rows: [
+        row('Distance from the township centre', ASSUME.stopKm.v + ' km', GRADE.REAL), row('Nearest rail station', ASSUME.railKm.v + ' km', GRADE.REAL)],
+        facts: ['The distance is real but drawn compressed. It uses an approximate centre and a straight line, from data.gov.my timetable feeds.', 'Live bus positions returned nothing when tested, so no real-time bus is shown.'] };
+      case 'bus': return { title: 'Bus, scheduled and illustrative', rows: [row('Source', 'a drawn loop, not a timetable')],
+        facts: ['This bus is a drawing. The real scheduled departures would come from the public timetable feed, which is not shown yet.'] };
+      case 'corridor': return { title: 'Elmina Urban Biodiversity Corridor', rows: [row('Trees planted along a 500 m stretch', ASSUME.corridorTrees.v.toLocaleString('en-GB'), GRADE.REAL)],
+        facts: ['From SDP\'s 2024 sustainability highlights. Your biodiversity score counts only the trees on your own plot, not these.'] };
+      case 'solar': { const kwp = input.solarKwp; return { title: 'Rooftop solar', rows: [
+        row('Size', kwp + ' kWp'), row('Offset today', Math.min(kwp * ASSUME.peakSunH.v * ASSUME.solarPerf.v, ASSUME.solarShare.v * d.useKwh).toFixed(1) + ' kWh'), row('Offset this month', sim.figures.solarKwh.value.toFixed(0) + ' kWh')],
+        facts: ['Offset is capped at the share of use that daytime solar can cover, with no export credit.'] }; }
+      case 'person': return { title: 'A resident on foot', rows: [
+        row('Trip', 'to the bus stop and back'), row('Distance each way', trip.walkKm + ' km', GRADE.REAL), row('Walking time each way', trip.walkMin.toFixed(0) + ' min'), row('Carbon for this trip', '0 kg')],
+        facts: ['The walking pace is a placeholder. The drawing compresses the distance.'] };
+      case 'car': return { title: 'A resident driving', rows: [
+        row('Round trip', trip.carKm.toFixed(2) + ' km'), row('Carbon for this trip', (trip.carKm * ASSUME.carKgKm.v).toFixed(2) + ' kg'), row('Running cost', 'RM ' + (trip.carKm * ASSUME.carRmKm.v).toFixed(2))],
+        facts: ['The same trip on foot would use no carbon and cost nothing.'] };
+      default: return null;
+    }
+  }
+
   // ---- the game: four weekly rounds on the same model ----
   const EVENTS = [
     { week: 1, title: 'A normal week', note: 'Typical weather. Set your habits for the week.' },
@@ -213,7 +251,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);
