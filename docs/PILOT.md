@@ -24,7 +24,7 @@ Bill data route: the owner types their own monthly kWh. TNB's pages say smart-me
 Continue only if at least half of those who start reach week 4, and at least a third say it changed a decision. Stop if fewer than about ten homes can be recruited.
 
 ## Data
-A bill figure is personal data. Under Malaysia's PDPA, collecting it counts as processing, so notice and consent apply. Keep only monthly kWh and home type, with no names or addresses. The prototype today stores nothing on a server. This is not legal advice: check the official text, including the 2024 amendment, which this proposal has only seen in secondary sources.
+A bill figure is personal data. Under Malaysia's PDPA, collecting it counts as processing, so notice and consent apply. Keep only monthly kWh and home type, with no names or addresses. The prototype today stores nothing on a server: the demo sign-in keeps a home in the browser's own storage, with no password, so it is not secure and a real pilot would need real authentication. This is not legal advice: check the official text, including the 2024 amendment, which this proposal has only seen in secondary sources.
 
 ## Cost lines (none estimated)
 Build and upkeep time, hosting (none today), survey, any participant incentive, SDP staff time, and TNB permissions if the pilot goes beyond owners typing their bill.

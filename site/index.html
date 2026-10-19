@@ -42,6 +42,10 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .insp{top:84px;right:10px;width:272px;max-height:calc(100% - 150px);overflow:auto}.insp .it{font-weight:700;font-size:15px;padding-right:22px}.insp .x{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}.insp table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px}.insp td{padding:3px 0;border-bottom:1px solid rgba(0,0,0,.08);vertical-align:top}.insp td:last-child{text-align:right;font-weight:600;white-space:nowrap;padding-left:8px}.insp .f{font-size:12px;color:#5b6b5f;margin-top:6px}
 .insp:not([hidden]){animation:rise .28s ease-out}@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.insp:not([hidden]){animation:none}}
+.gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(10,20,12,.62);padding:16px}.gate[hidden]{display:none}
+.gatebox{width:min(440px,100%);max-height:92vh;overflow:auto}.gatebox h1,.gatebox h2{margin:0 0 6px;font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink)}
+.gatebox input[type=email]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
+.chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
 .tag3d{position:absolute;left:0;top:0;pointer-events:none;background:rgba(22,36,26,.82);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap}.tag3d.dim{background:rgba(21,101,192,.85)}
 .nowebgl{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:#16241a;background:#e8f3df}
 .layout{display:grid;gap:14px;padding:14px 16px;max-width:1500px;margin:0 auto;grid-template-columns:minmax(300px,360px) 1fr}
@@ -52,8 +56,30 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
+  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="signOut">Sign out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
 </header>
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
+  <div class="card gatebox">
+    <h1 id="gateTitle">Terrarium</h1>
+    <p>See a month in your home before you sign for it. Sign in to keep your home and come back to it.</p>
+    <form id="gateForm" novalidate>
+      <label for="gateEmail">Email</label>
+      <input type="email" id="gateEmail" autocomplete="email" placeholder="you@example.com">
+      <div id="gateErr" class="chk bad" role="alert"></div>
+      <div class="row"><button class="cta" type="submit">Continue</button><button type="button" id="gateGuest">Try without signing in</button></div>
+    </form>
+    <p class="note" id="gateNote">Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.</p>
+  </div>
+</div>
+<div class="gate" id="wizard" role="dialog" aria-modal="true" aria-labelledby="wizTitle" hidden>
+  <div class="card gatebox">
+    <h2 id="wizTitle">Your home</h2>
+    <p class="note" style="margin-top:0">Tell us about the home. You can change any of this later, from Edit home.</p>
+    <div id="wizFields"></div>
+    <div class="row"><button class="cta" type="button" id="wizDone">Save home</button></div>
+  </div>
+</div>
 <div class="layout">
   <div class="col">
     <section class="card" id="game" aria-label="Play the month">
@@ -125,6 +151,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
 <script src="logic.js"></script>
+<script src="profile.js"></script>
 <script src="assistant.js"></script>
 <script src="scene.js"></script>
 <script src="app.js"></script>

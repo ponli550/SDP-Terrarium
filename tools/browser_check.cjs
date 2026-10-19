@@ -42,6 +42,14 @@ ok(sel.targetToSel < 1 && sel.selDist < 80, 'clicking something eases the camera
 h = dump('wheel=-900&frames=40&day=1&hour=12', ['--force-prefers-reduced-motion']); const rs = JSON.parse(attr(h, 'state'));
 ok(rs.reduce === true && Math.abs(rs.zoom.after1 - rs.zoom.end) < 1, 'with reduced motion on, the same scroll lands at once (reduce ' + rs.reduce + ', first frame ' + Math.round(rs.zoom.after1) + ' of ' + Math.round(rs.zoom.end) + ')');
 
+// what is actually drawn: a hidden attribute does not help if CSS sets display, which jsdom cannot see
+h = dump('gate=1&frames=4'); let ui = JSON.parse(attr(h, 'ui'));
+ok(ui.gate !== 'none' && ui.wizard === 'none' && ui.chip === 'none', 'at the gate: the gate is drawn, the dialog and the user chip are not (gate ' + ui.gate + ', wizard ' + ui.wizard + ', chip ' + ui.chip + ')');
+h = dump('wizard=1&frames=4'); ui = JSON.parse(attr(h, 'ui'));
+ok(ui.wizard !== 'none' && ui.gate === 'none' && ui.chip !== 'none', 'in set-up: the dialog and the chip are drawn, the gate is not');
+h = dump('frames=4'); ui = JSON.parse(attr(h, 'ui'));
+ok(ui.gate === 'none' && ui.wizard === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
+
 h = dump('autoweek=1&speed=8&walk=0.5&frames=450');
 ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in week plays to its end and opens round 2 with its event');
 console.log('browser checks passed:', n);
