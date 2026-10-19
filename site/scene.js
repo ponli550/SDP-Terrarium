@@ -22,7 +22,9 @@
     camera.position.set(64, 62, 84);
     var controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.target.set(8, 0, -8);
-    controls.enableDamping = true; controls.dampingFactor = 0.08;
+    // lazy motion: drags keep gliding after release, zoom eases toward a goal, and clicking eases in on the thing. All of it is off under reduced motion.
+    var reduce = !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    controls.enableDamping = true; controls.dampingFactor = reduce ? 1 : 0.045; controls.rotateSpeed = 0.7; controls.enableZoom = false;
     controls.maxPolarAngle = 1.38; controls.minDistance = 35; controls.maxDistance = 240;
 
     var hemi = new THREE.HemisphereLight(0xdff3ff, 0x6a8a55, 0.65); scene.add(hemi);
@@ -159,11 +161,22 @@
     }
     function select(o) {
       selected = o; outline.visible = !!o;
-      if (o) outline.setFromObject(o);
+      if (o) {
+        outline.setFromObject(o);
+        if (!following) {   // ease the camera in on it: pan so it is centred, and settle at a distance that fits its size
+          var bx = new THREE.Box3().setFromObject(o), ctr = bx.getCenter(new THREE.Vector3()), size = bx.getSize(new THREE.Vector3()).length();
+          flyGoal = { target: new THREE.Vector3(ctr.x, Math.min(ctr.y, 6), ctr.z) }; zoomGoal = Math.min(controls.maxDistance, Math.max(controls.minDistance, size * 1.8 + 26));
+        }
+      }
       if (hooks.onInspect) hooks.onInspect(o ? o.userData.inspect : null, o);
     }
-    var el = renderer.domElement;
-    el.addEventListener('pointerdown', function (e) { downAt = { x: e.clientX, y: e.clientY }; });
+    var el = renderer.domElement, zoomGoal = null, flyGoal = null, shotZoom = {};
+    el.addEventListener('wheel', function (e) {
+      e.preventDefault(); if (following) return;
+      var cur = zoomGoal !== null ? zoomGoal : camera.position.distanceTo(controls.target), dy = e.deltaY * (e.deltaMode === 1 ? 16 : 1);
+      zoomGoal = Math.min(controls.maxDistance, Math.max(controls.minDistance, cur * Math.exp(dy * 0.0012)));
+    }, { passive: false });
+    el.addEventListener('pointerdown', function (e) { downAt = { x: e.clientX, y: e.clientY }; flyGoal = null; });   // grabbing the scene cancels an ease-in
     el.addEventListener('pointerup', function (e) {
       if (!downAt) return; var moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); downAt = null; if (moved > 5) return;
       var r = el.getBoundingClientRect(); select(pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1));
@@ -324,14 +337,21 @@
       updateBus(dt * (0.6 + sp * 0.4));
       pin.position.set(HOME_POS.x, (pin.userData.baseY || 14) + Math.sin(now / 400) * 0.8, HOME_POS.z);
       if (selected) { if (!selected.parent) select(null); else outline.setFromObject(selected); }
-      if (following) { var tg = newestAgent(); if (tg) { controls.target.lerp(tg.position, 0.12); camera.position.lerp(tg.position.clone().add(offset), 0.06); } }
+      if (following) { flyGoal = null; zoomGoal = null; var tg = newestAgent(); if (tg) { controls.target.lerp(tg.position, 0.12); camera.position.lerp(tg.position.clone().add(offset), 0.06); } }
       else if (returning > 0) { returning -= dt; controls.target.lerp(DEFAULT_TGT, 0.08); camera.position.lerp(DEFAULT_CAM, 0.06); }
+      if (!following) {
+        var ease = reduce ? 1 : 1 - Math.pow(0.93, Math.min(dt, 0.1) * 60);   // the same glide at any frame rate
+        if (flyGoal) { var stp = flyGoal.target.clone().sub(controls.target).multiplyScalar(ease); controls.target.add(stp); camera.position.add(stp); if (flyGoal.target.distanceTo(controls.target) < 0.15) flyGoal = null; }
+        if (zoomGoal !== null) { var curD = camera.position.distanceTo(controls.target), nxtD = curD + (zoomGoal - curD) * ease; if (Math.abs(zoomGoal - curD) < 0.08) { nxtD = zoomGoal; zoomGoal = null; } camera.position.sub(controls.target).setLength(nxtD).add(controls.target); }
+      }
+      if (hooks.wheel && frames === 2) { shotZoom.start = camera.position.distanceTo(controls.target); renderer.domElement.dispatchEvent(new WheelEvent('wheel', { deltaY: hooks.wheel, cancelable: true, bubbles: true })); }
+      if (hooks.wheel && frames === 3) shotZoom.after1 = camera.position.distanceTo(controls.target);
       controls.update(); placeLabels();
       renderer.render(scene, camera);
       if (hooks.maxFrames && frames >= hooks.maxFrames) {
         root.__shotDone = true;
         var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)) });
+        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
         return;
