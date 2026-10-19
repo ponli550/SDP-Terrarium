@@ -211,3 +211,48 @@ test('the stop and walking panels use the same real distance as the model', () =
   assert.strictEqual(T.inspectInfo('person', T.DEFAULTS).rows.find((r) => r.k === 'Walking time each way').v, (T.ASSUME.stopKm.v * T.ASSUME.walkMinKm.v).toFixed(0) + ' min');
   assert.ok(Math.abs(Number(T.inspectInfo('car', T.DEFAULTS).rows.find((r) => r.k === 'Carbon for this trip').v.split(' ')[0]) - 2 * T.ASSUME.stopKm.v * T.ASSUME.carKgKm.v) < 0.006);
 });
+
+test('calibrate: the month matches the bill within a kWh, for homes with and without solar', () => {
+  for (const base of [{}, { solarKwp: 3 }, { house: 'condo' }, { house: 'semid', acHours: 4 }]) {
+    const input = Object.assign({}, T.DEFAULTS, base), own = T.simulate(input).figures.monthKwh.value;
+    for (const actual of [own * 0.9, own * 1.5, own * 2.2]) {
+      const c = T.calibrate(input, actual); assert.ok(c.ok, JSON.stringify(base) + ' ' + actual);
+      assert.ok(Math.abs(T.simulate(Object.assign({}, input, { baseScale: c.baseScale, billKwh: actual })).figures.monthKwh.value - actual) < 0.01);
+    }
+  }
+});
+test('calibrate: reports the gap against the model\'s own estimate, with the right sign', () => {
+  const input = Object.assign({}, T.DEFAULTS), own = T.simulate(input).figures.monthKwh.value;
+  assert.ok(Math.abs(T.calibrate(input, own * 1.5).gapPct - 50) < 0.01);
+  assert.ok(Math.abs(T.calibrate(input, own * 0.9).gapPct + 10) < 0.01);
+  assert.ok(Math.abs(T.calibrate(input, own).baseScale - 1) < 0.005);
+});
+test('calibrate: refuses bills that are out of range or that the home cannot reach, and says why', () => {
+  const input = Object.assign({}, T.DEFAULTS);
+  for (const bad of [0, 10, -5, 5000, NaN, undefined]) { const c = T.calibrate(input, bad); assert.ok(!c.ok && /between 50 and 3000/.test(c.reason), String(bad)); }
+  const c = T.calibrate(Object.assign({}, input, { acHours: 12 }), 100); assert.ok(!c.ok && /air-con and solar/.test(c.reason));
+});
+test('only the base load moves: air-con kWh and solar offset follow their own rules', () => {
+  const input = Object.assign({}, T.DEFAULTS, { acHours: 8, solarKwp: 0 }), a = T.simulate(input), b = T.simulate(Object.assign({}, input, { baseScale: 2 }));
+  const base = T.HOUSES.terrace.baseKwhDay;
+  for (let i = 0; i < 30; i++) assert.ok(Math.abs((b.days[i].useKwh - a.days[i].useKwh) - base) < 1e-9);
+});
+test('the electricity figure is REAL only while it equals the bill', () => {
+  const input = Object.assign({}, T.DEFAULTS), c = T.calibrate(input, 700), billed = Object.assign({}, input, { baseScale: c.baseScale, billKwh: 700 });
+  assert.strictEqual(T.simulate(billed).figures.monthKwh.grade, 'REAL');
+  assert.strictEqual(T.simulate(Object.assign({}, billed, { acHours: 2 })).figures.monthKwh.grade, 'ILLUSTRATIVE');  // the home changed: the match is gone
+  assert.strictEqual(T.simulate(Object.assign({}, billed, { trees: 9 })).figures.monthKwh.grade, 'ILLUSTRATIVE');
+  assert.strictEqual(T.simulate(input).figures.monthKwh.grade, 'ILLUSTRATIVE');
+  for (const k of ['monthBill', 'carbonKg', 'walkMin', 'comfortPct']) assert.strictEqual(T.simulate(billed).figures[k].grade, 'ILLUSTRATIVE', k + ' stays a placeholder');
+});
+test('a calibrated home leaves the neighbour baseline alone', () => {
+  const c = T.calibrate(T.DEFAULTS, 900), s = T.scores(Object.assign({}, T.DEFAULTS, { baseScale: c.baseScale, billKwh: 900 }));
+  assert.ok(Math.abs(s.neighbour.figures.monthKwh.value - T.simulate(T.NEIGHBOUR).figures.monthKwh.value) < 1e-9);
+  assert.ok(s.pillars[0].score < 50, 'a home using far more than the neighbour scores below 50 on energy');
+});
+test('the home panel says whether its electricity figures are your bill or simulated', () => {
+  const input = Object.assign({}, T.DEFAULTS), c = T.calibrate(input, 700), billed = Object.assign({}, input, { baseScale: c.baseScale, billKwh: 700 });
+  const get = (i) => T.inspectInfo('home', i, { day: 3, hour: 12 }).rows.find((r) => r.k === 'Electricity figures');
+  assert.deepStrictEqual([get(billed).v, get(billed).grade], ['matched to your bill', 'REAL']);
+  assert.deepStrictEqual([get(input).v, get(input).grade], ['simulated', 'ILLUSTRATIVE']);
+});

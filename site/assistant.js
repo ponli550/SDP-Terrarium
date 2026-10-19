@@ -30,7 +30,7 @@
       var k = b.cl({ kind: 'figure', key: 'monthKwh', value: Math.round(f.monthKwh.value) }), r = b.cl({ kind: 'figure', key: 'monthBill', value: Math.round(f.monthBill.value) });
       var c = b.cl({ kind: 'figure', key: 'carbonKg', value: Math.round(f.carbonKg.value) }), t = b.cl({ kind: 'total', value: Math.round(S.total) });
       b.text.push('This month your home uses ' + fg(k, fnum(f.monthKwh.value, 0)) + ' kWh, an electricity bill of about RM ' + fg(r, fnum(f.monthBill.value, 0)) + '. Carbon from the home and short trips is ' + fg(c, fnum(f.carbonKg.value, 0)) + ' kg.');
-      b.text.push('You score ' + fg(t, fnum(S.total, 0)) + ' out of one hundred against SDP\'s four pillars. These figures are illustrative until a real home replaces them.');
+      b.text.push('You score ' + fg(t, fnum(S.total, 0)) + ' out of one hundred against SDP\'s four pillars. ' + (f.monthKwh.grade === 'REAL' ? 'The electricity figure is matched to your own bill; the other figures stay illustrative.' : 'These figures are illustrative until a real home replaces them.'));
       b.cards.push({ type: 'pillars' });
     } },
     pillar: { kind: 'read', describe: 'One pillar: its score and the formula behind it.', params: { key: 1 }, run: function (a, ctx, b) {

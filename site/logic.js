@@ -31,7 +31,7 @@
     condo:   { label: 'Condominium',   baseKwhDay: 6,  acFactor: 0.8 },
   };
 
-  const DEFAULTS = { house: 'terrace', acHours: 8, setpoint: 24, solarKwp: 0, walkShare: 0.2, trees: 2, nativeShare: 0.2, hotWeek: false };
+  const DEFAULTS = { baseScale: 1, house: 'terrace', acHours: 8, setpoint: 24, solarKwp: 0, walkShare: 0.2, trees: 2, nativeShare: 0.2, hotWeek: false };
   const NEIGHBOUR = Object.assign({}, DEFAULTS); // the "neighbour average", illustrative
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -69,7 +69,7 @@
       const acKwh = w.acHours * ASSUME.acKw24.v * (1 - ASSUME.acPerDegree.v * (w.setpoint - 24))
                     * house.acFactor * (1 + 0.03 * (mean - 28))
                     * (1 - Math.min(0.1, ASSUME.shadePerTree.v * c.trees));
-      const use = house.baseKwhDay + acKwh;
+      const use = house.baseKwhDay * c.baseScale + acKwh;
       const solar = Math.min(c.solarKwp * ASSUME.peakSunH.v * ASSUME.solarPerf.v, ASSUME.solarShare.v * use);
       const net = use - solar;
       const need = Math.max(nightHotHours(mean), 1);
@@ -95,7 +95,8 @@
     return {
       choices: c, days,
       figures: {
-        monthKwh:   { value: kwhTotal, grade: GRADE.ILLUSTRATIVE, unit: 'kWh', label: 'Electricity this month' },
+        // REAL only while the month still equals the owner's own bill; any change to the home breaks the match
+        monthKwh:   { value: kwhTotal, grade: c.billKwh != null && Math.abs(kwhTotal - c.billKwh) < 1 ? GRADE.REAL : GRADE.ILLUSTRATIVE, unit: 'kWh', label: 'Electricity this month' },
         monthBill:  { value: elecRm, grade: GRADE.ILLUSTRATIVE, unit: 'RM', label: 'Electricity bill' },
         carbonKg:   { value: elecKg + carKg, grade: GRADE.ILLUSTRATIVE, unit: 'kg CO2', label: 'Carbon, home and short trips' },
         carRm:      { value: carRm, grade: GRADE.ILLUSTRATIVE, unit: 'RM', label: 'Car cost, short trips' },
@@ -160,6 +161,18 @@
   }
 
 
+  // ---- after handover: the owner's real monthly kWh replaces the simulated month ----
+  // One number cannot say why a home differs from the model, so only the base load (everything that is not air-con) is adjusted.
+  function calibrate(input, actualKwh) {
+    if (!(actualKwh >= 50 && actualKwh <= 3000)) return { ok: false, reason: 'Enter the kWh from your bill, between 50 and 3000.' };
+    const run = (s) => simulate(Object.assign({}, input, { baseScale: s, billKwh: null })).figures.monthKwh.value;
+    const own = run(1);
+    let lo = 0.05, hi = 8;
+    if (run(lo) > actualKwh || run(hi) < actualKwh) return { ok: false, reason: 'No base load lets this home reach that figure. Check the home, air-con and solar settings.' };
+    for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (run(mid) < actualKwh) lo = mid; else hi = mid; }
+    return { ok: true, baseScale: (lo + hi) / 2, billKwh: actualKwh, simulatedKwh: own, gapPct: 100 * (actualKwh - own) / own };
+  }
+
   // ---- what the inspect panel shows when something in the scene is clicked. Pure, so it can be tested. ----
   function inspectInfo(kind, input, clk, extra) {
     clk = clk || { day: 1, hour: 12 }; extra = extra || {};
@@ -171,6 +184,7 @@
       case 'home': return { title: (HOUSES[input.house] || HOUSES.terrace).label + ', your home', rows: [
         row('Air-con now', acIsOn(clk.hour, ch.acHours) ? 'On' : 'Off'), row('Air-con at night', ch.acHours + ' h at ' + ch.setpoint + ' C'),
         row('Rooftop solar', input.solarKwp ? input.solarKwp + ' kWp' : 'none'), row('Trees on the plot', input.trees + ' (' + native + ' native)'),
+        row('Electricity figures', input.billKwh != null && Math.abs(sim.figures.monthKwh.value - input.billKwh) < 1 ? 'matched to your bill' : 'simulated', input.billKwh != null && Math.abs(sim.figures.monthKwh.value - input.billKwh) < 1 ? GRADE.REAL : GRADE.ILLUSTRATIVE),
         row('Used so far today', kwhToday.toFixed(1) + ' kWh'), row('Weather now', wx.label + ', ' + wx.temp.toFixed(0) + ' C')],
         facts: ['Every figure here comes from the simulation and is illustrative until a real home replaces it.'] };
       case 'neighbour': return { title: 'A neighbour\'s home', rows: [
@@ -251,7 +265,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);

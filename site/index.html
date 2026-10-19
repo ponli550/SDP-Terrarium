@@ -83,6 +83,12 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
     <label class="check"><input type="checkbox" id="hotWeek"> Add a hot week (days 10-16)</label>
     <p class="note">The neighbour average is a fixed illustrative household: terrace, 8 h air-con at 24, no solar, 20% of trips on foot, 2 trees at 20% native.</p>
   </section>
+  <section class="card" id="handover" aria-label="After handover">
+    <h2>After handover: your real bill</h2>
+    <p class="note" style="margin-top:0">Once you live in the home, replace the simulated month with the kWh on your own bill. The model shows how far off it was and matches its base load to you.</p>
+    <form id="billForm" class="row" style="margin-top:8px"><input type="number" id="billKwh" min="50" max="3000" step="1" placeholder="kWh on last month's bill" aria-label="kWh on your bill" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit"><button class="cta" type="submit">Match</button><button type="button" id="billReset">Reset</button></form>
+    <div id="billOut" class="ans" aria-live="polite"></div>
+  </section>
   </div>
   <div class="col">
     <div class="stage" id="stage">
