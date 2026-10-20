@@ -9,6 +9,7 @@ const html = read('index.html')
   .replace(/<script src="vendor\/[^"]*"><\/script>\s*/g, '').replace(/<script src="scene.js"><\/script>\s*/, '')
   .replace('<script src="logic.js"></script>', '<script>' + read('logic.js') + '</script>')
   .replace('<script src="profile.js"></script>', '<script>' + read('profile.js') + '</script>')
+  .replace('<script src="mcpconfig.js"></script>', '<script>' + read('mcpconfig.js') + '</script>')
   .replace('<script src="assistant.js"></script>', '<script>' + read('assistant.js') + '</script>')
   .replace('<script src="app.js"></script>', '<script>' + read('app.js') + '</script>');
 const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
@@ -290,5 +291,41 @@ $('anaMap').click(); ok(T0.view() === 'map', 'Show on the map goes to the Map');
 $('anaCompare').click(); ok(!$('compare').hidden, 'the bar\'s Compare opens the comparison'); $('cmpClose').click();
 $('anaMonth').click(); ok(fl(), 'the bar\'s My month opens the first look'); $('flExplore').click(); T0.go('analysis');
 $('gStart').click(); T0.go('analysis'); ok($('anaCompare').disabled && $('anaMonth').disabled, 'the bar\'s buttons are locked during a game'); $('gQuit').click(); ok(!$('anaCompare').disabled && !$('anaMonth').disabled, 'and unlocked after');
+// connect an AI assistant
+const MC = w.TerrariumMcp; T0.go('analysis');
+const setT = (id, v) => { const e = $(id); e.value = v; e.dispatchEvent(new w.Event('input', { bubbles: true })); };
+const pickC = (v) => { $('mcpClient').value = v; $('mcpClient').dispatchEvent(new w.Event('change', { bubbles: true })); };
+const exported = () => decodeURIComponent($('dlHome').getAttribute('href').replace(/^data:application\/json;charset=utf-8,/, ''));
+const cfgText = () => ($('mcpConfigText') || {}).textContent;
+const SRV = '/Users/me/My Projects/terrarium/mcp/server.mjs', HOMEF = '/Users/me/Downloads/terrarium-home.json';
+ok(inside('connect', '#viewAnalysis') && !inside('connect', '#viewMap'), 'the Connect card is on the Analysis page');
+ok($('dlHome').getAttribute('download') === 'terrarium-home.json' && /^data:application\/json;charset=utf-8,/.test($('dlHome').getAttribute('href')), 'the home downloads as terrarium-home.json');
+const first = w.TerrariumProfile.parseHomeFile(exported());
+ok(first.ok && first.dropped.length === 0 && first.home.house === val('house') && first.home.trees === +val('trees') && first.home.level === +val('level'), 'the file is a valid Terrarium home with what the page shows');
+ok(!/@|email|password|token/i.test(exported()), 'it never contains an email or any secret');
+ok($('dlWhat').textContent === w.Terrarium.homeLabel({ house: val('house'), level: +val('level'), lot: JSON.parse(exported()).home.lot }), 'the page names the home the file holds');
+const fileBefore = exported(); setRange('trees', 9); ok(exported() !== fileBefore && JSON.parse(exported()).home.trees === 9, 'changing the home changes the file');
+ok([...$('mcpClient').options].map((o) => o.value).join() === 'workbuddy,claude-code,claude-desktop,generic' && val('mcpClient') === 'workbuddy', 'the four assistants are offered, WorkBuddy first');
+ok(!$('mcpConfigText') && /paste the two paths/.test($('mcpOut').textContent) && $('mcpCopy').hidden, 'with no paths yet it says what to do and shows no config');
+setT('mcpServer', SRV); ok(!$('mcpConfigText') && /paste the two paths/.test($('mcpOut').textContent), 'one path is not enough');
+setT('mcpHome', HOMEF);
+{ const j = JSON.parse(cfgText()).mcpServers.terrarium; ok(j.type === 'stdio' && j.command === 'node' && JSON.stringify(j.args) === JSON.stringify([SRV, '--home', HOMEF]) && !('env' in j), 'WorkBuddy gets a stdio entry with the home as an argument, never env, and paths with spaces intact'); }
+ok(cfgText() === MC.configFor('workbuddy', { serverPath: SRV, homePath: HOMEF }).text && !$('mcpCopy').hidden, 'it is exactly what the command-line generator prints, and Copy appears');
+ok(/~\/\.workbuddy-ai\/mcp\.json/.test($('mcpOut').textContent) && /Merge it into any existing mcpServers/.test($('mcpOut').textContent) && /do not see your shell's PATH/.test($('mcpOut').textContent) && /Do not move it into an env block/.test($('mcpOut').textContent), 'it says where the file goes, to merge, and warns about PATH and env');
+pickC('claude-code'); ok(cfgText().startsWith("claude mcp add terrarium -- 'node' '" + SRV + "' '--home' '" + HOMEF + "'") && /\.mcp\.json/.test($('mcpOut').textContent) && $('mcpOut').querySelectorAll('pre').length === 2, 'Claude Code gets the add command and the JSON alternative');
+pickC('claude-desktop'); { const j = JSON.parse(cfgText()).mcpServers.terrarium; ok(!('type' in j) && /claude_desktop_config\.json/.test($('mcpOut').textContent), 'Claude Desktop gets no type, and its file location'); }
+pickC('workbuddy');
+setT('mcpNode', '/Users/me/.nvm/versions/node/v24.20.0/bin/node'); ok(JSON.parse(cfgText()).mcpServers.terrarium.command === '/Users/me/.nvm/versions/node/v24.20.0/bin/node', 'a full node path replaces "node"'); setT('mcpNode', '');
+setT('mcpServer', 'mcp/server.mjs'); ok(!$('mcpConfigText') && /absolute path/.test($('mcpOut').textContent) && $('mcpCopy').hidden, 'a relative path is refused with the reason, and no config is shown');
+setT('mcpServer', '~/mcp/server.mjs'); ok(!$('mcpConfigText') && /absolute path/.test($('mcpOut').textContent), 'a ~ is refused too');
+setT('mcpServer', SRV); setT('mcpHome', 'home.json'); ok(!$('mcpConfigText') && /home file path must be an absolute path/.test($('mcpOut').textContent), 'a relative home path is refused'); setT('mcpHome', HOMEF);
+ok(!$('mcpHomeRow').hidden, 'the home path is asked for by default'); $('mcpDefaults').checked = true; $('mcpDefaults').dispatchEvent(new w.Event('change', { bubbles: true }));
+ok($('mcpHomeRow').hidden && JSON.stringify(JSON.parse(cfgText()).mcpServers.terrarium.args) === JSON.stringify([SRV, '--defaults']) && /default demo home/.test($('mcpOut').textContent), 'a demo home hides the home path, uses --defaults and says it is a demo');
+$('mcpDefaults').checked = false; $('mcpDefaults').dispatchEvent(new w.Event('change', { bubbles: true })); ok(!$('mcpHomeRow').hidden && /--home/.test(cfgText()), 'and switching back restores the home');
+setT('mcpServer', '/tmp/<b>x</b>/<img src=x onerror=alert(1)>/server.mjs'); ok($('mcpOut').querySelector('img') === null && $('mcpOut').querySelectorAll('b').length === 1 && cfgText().includes('<img src=x onerror=alert(1)>') && !$('mcpOut').innerHTML.includes('<img'), 'a hostile path is shown as text, never as markup'); setT('mcpServer', SRV);
+{ let copied = null; Object.defineProperty(w.navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { copied = t; return Promise.resolve(); } } }); $('mcpCopy').click(); ok(copied === cfgText() && copied.includes(SRV), 'Copy puts the config on the clipboard'); }
+setT('mcpServer', '  ' + SRV + '\n'); setT('mcpHome', ' ' + HOMEF + ' '); ok(JSON.stringify(JSON.parse(cfgText()).mcpServers.terrarium.args) === JSON.stringify([SRV, '--home', HOMEF]), 'pasted paths are trimmed of stray spaces and newlines');
+ok($('mcpOut').querySelectorAll('i, a, img, script').length === 0 && $('mcpOut').querySelector('b').textContent === MC.configFor('workbuddy', { serverPath: SRV, homePath: HOMEF }).title, 'the title is plain text');
+$('mcpClient').value = 'workbuddy'; T0.go('map'); ok(!shown('viewAnalysis'), 'and the card goes with the page');
 T0.go('map');
 console.log('site checks passed:', n);

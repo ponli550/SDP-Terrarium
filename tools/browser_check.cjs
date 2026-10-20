@@ -4,10 +4,12 @@
 const { spawnSync } = require('child_process'), fs = require('fs'), path = require('path'), assert = require('assert');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!fs.existsSync(CHROME)) { console.log('browser checks skipped: no Chrome at ' + CHROME + ' (set CHROME)'); process.exit(0); }
+const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => fs.rmSync(PROFILE, { recursive: true, force: true }));
 const page = 'file://' + path.join(__dirname, '..', 'site', 'index.html');
+// Each run gets its own profile: with a normal Chrome already open, a headless launch on the default profile hands off to it and returns un-run HTML.
 // A dump with no scene state at all means Chrome did not finish (a launch problem), so it is retried once. A failed assertion is never retried.
-const dump = (query, extra) => { const h = dumpOnce(query, extra); return /data-state=/.test(h) || !/frames=/.test(query) ? h : dumpOnce(query, extra); };
-const dumpOnce = (query, extra) => spawnSync('perl', ['-e', 'alarm 120; exec @ARGV', CHROME, '--headless=new'].concat(extra || [], [ '--disable-gpu', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1000,700', '--virtual-time-budget=30000', '--dump-dom', page + '?shot&' + query]), { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || '';
+const dump = (query, extra) => { const h = dumpOnce(query, extra); return (/data-state=/.test(h) && /data-ui=/.test(h)) || !/frames=/.test(query) ? h : dumpOnce(query, extra); };
+const dumpOnce = (query, extra) => spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, page + '?shot&' + query].concat(extra || []), { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || '';
 const attr = (h, name) => { const m = h.match(new RegExp('data-' + name + '="([^"]*)"')); return m ? m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&') : null; };
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 
@@ -68,6 +70,10 @@ ok(pgs.st.active === false && pgs.st.looping === false && pgs.st.pending === fal
 pgs = both('view=analysis&stopidle=1&viewtimer=300&frames=100000&dumpafter=2200');
 ok(pgs.st.active === true && pgs.st.looping === true && (pgs.st.pending === true || pgs.st.perf.frames > 0) && pgs.st.canvas[0] > 300 && pgs.st.canvas[1] > 300, 'and when the Map returns the loop starts again (a frame is requested or drawn: pending ' + pgs.st.pending + ', drew ' + pgs.st.perf.frames + ') and the canvas has a real size (' + pgs.st.canvas.join(' x ') + ')');
 ok(pgs.ui.fade.found && pgs.ui.fade.transform === false && pgs.ui.fade.name === 'fade', 'the page transition is a fade only, with no transform that could overflow the document (found ' + pgs.ui.fade.found + ', transform ' + pgs.ui.fade.transform + ', animation ' + pgs.ui.fade.name + ')');
+const longCfg = 'mcpserver=%2FUsers%2Firfanali%2FProjects%2FHackathon%2FSDP-Terrarium-mcp%2Fmcp%2Fserver.mjs&mcphome=%2FUsers%2Firfanali%2FDownloads%2Fa%2520very%2520long%2520folder%2520name%2Fterrarium-home-for-the-condominium-on-lot-six.json&mcpnode=%2FUsers%2Firfanali%2F.nvm%2Fversions%2Fnode%2Fv24.20.0%2Fbin%2Fnode';
+pgs = both('view=analysis&frames=8&' + longCfg); ok(pgs.ui.connect !== 'none' && pgs.ui.anaOverflow <= 1, 'with a long config shown, no card on the Analysis page sticks out past its column (' + pgs.ui.anaOverflow + ' px)');
+pgs = both('view=analysis&frames=8'); ok(pgs.ui.anaOverflow <= 1, 'and with nothing filled in either (' + pgs.ui.anaOverflow + ' px)');
+pgs = both('frames=8'); ok(pgs.ui.viewAnalysis === 'none' && pgs.ui.viewMap !== 'none', 'the Connect card lives on the Analysis page, which is not drawn on the Map');
 pgs = both('ask=What%20should%20I%20change%20first%3F&frames=20'); ok(pgs.ui.chat !== 'none', 'asking a question opens the chat');
 
 // render hygiene, from measurements: removed meshes are disposed (about 108 geometries leaked per home rebuild before), trips do not leak, and the HUD is not rewritten every frame
