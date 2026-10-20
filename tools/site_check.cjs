@@ -104,6 +104,7 @@ $('billReset').click(); ok(kwhFig().querySelector('.badge').textContent === 'ILL
 bill(700); $('gStart').click(); ok($('billKwh').disabled && $('billReset').disabled, 'the bill card is locked during a game'); $('gQuit').click(); ok(!$('billKwh').disabled, 'and unlocks when the game ends');
 $('billReset').click();
 // sign-in, the saved home, the set-up dialog
+const settle = () => { if (!$('firstLook').hidden) $('flExplore').click(); };   // a first-time set-up ends in the first look: dismiss it where a flow carries on
 const submitGate = (email) => { $('gateEmail').value = email; $('gateForm').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); };
 const stored = () => JSON.parse(w.localStorage.getItem('terrarium.v1') || '{"users":{}}');
 const val = (id) => $(id).value;
@@ -118,7 +119,7 @@ const setW = (id, v, ev) => { const e = $(id); e.value = v; e.dispatchEvent(new 
 setW('w_house', 'condo', 'change'); setW('w_solarKwp', 4); setW('w_trees', 7); setW('w_nativeShare', 60);
 ok(val('house') === 'condo' && val('solarKwp') === '4' && val('trees') === '7' && val('nativeShare') === '60', 'the set-up dialog edits the same home the page shows');
 ok($('pillars').textContent.includes('Urban Biodiversity'), 'and the scores follow it');
-$('wizDone').click();
+$('wizDone').click(); settle();
 ok($('wizard').hidden, 'Save home closes the dialog');
 ok(stored().users['ali@example.com'].home.house === 'condo' && stored().users['ali@example.com'].home.solarKwp === 4 && stored().users['ali@example.com'].setUp === true, 'the home is saved in this browser and marked set up');
 setRange('trees', 9); ok(stored().users['ali@example.com'].home.trees === 9, 'editing on the page autosaves');
@@ -130,11 +131,11 @@ submitGate('ali@example.com');
 ok($('gate').hidden && $('wizard').hidden && val('house') === 'condo' && val('trees') === '9' && val('solarKwp') === '4', 'signing back in restores the saved home and skips the set-up');
 $('signOut').click(); submitGate('bo@example.com');
 ok(!$('wizard').hidden && val('house') === 'terrace' && val('trees') === '2', 'a different person starts with their own empty home');
-$('wizDone').click(); $('signOut').click(); submitGate('ali@example.com'); ok(val('house') === 'condo', 'and the first person\'s home is untouched');
+$('wizDone').click(); settle(); $('signOut').click(); submitGate('ali@example.com'); ok(val('house') === 'condo', 'and the first person\'s home is untouched');
 $('gStart').click(); ok($('editHome').disabled, 'Edit home is locked during a game'); $('gQuit').click(); ok(!$('editHome').disabled, 'and unlocks after');
 const usersBefore = JSON.stringify(stored().users); $('signOut').click(); $('gateGuest').click();
 ok(!$('wizard').hidden && $('userName').textContent === 'Guest' && $('signOut').textContent === 'Leave', 'a guest sees the set-up and is labelled a guest');
-setW('w_house', 'semid', 'change'); setRange('trees', 5); $('wizDone').click();
+setW('w_house', 'semid', 'change'); setRange('trees', 5); $('wizDone').click(); settle();
 ok(JSON.stringify(stored().users) === usersBefore && !/semid/.test(w.localStorage.getItem('terrarium.v1')), 'nothing about the guest is written to storage');
 $('signOut').click(); ok(!$('gate').hidden, 'leaving returns to the gate');
 // placing your lot
@@ -143,7 +144,7 @@ submitGate('lot@example.com'); ok(!$('wizard').hidden && !$('wizNext').hidden, '
 setW('w_house', 'semid', 'change'); $('wizNext').click();
 ok($('wizard').hidden && bar() && $('lotSel').querySelectorAll('option[value]').length >= 12, 'Next closes the dialog and opens the lot chooser with every lot listed');
 ok(lotsRead() === 'No lot chosen yet.' && $('lotSel').querySelector('option[value=""]'), 'nothing is chosen until you choose');
-$('lotConfirm').click(); ok(bar() && lotsRead() === 'Choose a lot first.', 'confirming with no lot is refused');
+$('lotConfirm').click(); settle(); ok(bar() && lotsRead() === 'Choose a lot first.', 'confirming with no lot is refused');
 $('lotSel').value = '5'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true }));
 ok(/^Lot 6: \d\.\d\d km to the bus stop, about \d+ min on foot/.test(lotsRead()) && /illustrative/.test(lotsRead()), 'choosing a lot reads out its distance and says the layout is a drawing');
 ok(!$('lotSel').querySelector('option[value=""]'), 'the placeholder option goes once a lot is chosen');
@@ -154,7 +155,7 @@ ok(distNow() && distNow().querySelector('.badge').textContent === 'ILLUSTRATIVE'
 $('lotSel').value = '1'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true })); const farKm = lotsRead();
 $('lotCancel').click(); ok(!bar() && !distNow() && lotOf('lot@example.com') === undefined, 'Cancel puts everything back and saves nothing');
 $('moveHouse').click(); ok(bar(), 'Move house reopens the chooser'); $('lotSel').value = '5'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true }));
-$('lotConfirm').click(); ok(!bar() && lotOf('lot@example.com') === 5 && stored().users['lot@example.com'].setUp === true, 'Confirm saves the lot and marks the home set up');
+$('lotConfirm').click(); settle(); ok(!bar() && lotOf('lot@example.com') === 5 && stored().users['lot@example.com'].setUp === true, 'Confirm saves the lot and marks the home set up');
 $('signOut').click(); submitGate('lot@example.com'); ok($('wizard').hidden && distNow(), 'signing back in restores the lot');
 $('moveHouse').click(); $('lotSel').value = '2'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true }));
 w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok(!bar() && lotOf('lot@example.com') === 5, 'Escape cancels and keeps the old lot');
@@ -164,10 +165,10 @@ $('moveHouse').click(); $('gStart').click(); ok(!bar(), 'starting a game while p
 $('moveHouse').dispatchEvent(new w.Event('click', { bubbles: true })); ok(!bar(), 'and even a forced click on Move house does nothing during a game'); $('gQuit').click();
 $('moveHouse').click(); $('signOut').click(); ok(!bar(), 'signing out closes the chooser');
 $('gateGuest').click(); $('wizNext').click(); $('lotSel').value = '3'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true })); const usersG = JSON.stringify(stored().users);
-$('lotConfirm').click(); ok(JSON.stringify(stored().users) === usersG, 'a guest\'s lot is never written to storage'); $('signOut').click();
+$('lotConfirm').click(); settle(); ok(JSON.stringify(stored().users) === usersG, 'a guest\'s lot is never written to storage'); $('signOut').click();
 // condo levels
 const figVal = (t) => [...$('figs').querySelectorAll('.fig')].find((f) => f.textContent.includes(t)).querySelector('b').textContent;
-submitGate('floor@example.com'); $('wizDone').click();
+submitGate('floor@example.com'); $('wizDone').click(); settle();
 ok($('levelRow').hidden, 'a house has no floor control');
 $('house').value = 'condo'; $('house').dispatchEvent(new w.Event('change', { bubbles: true }));
 ok(!$('levelRow').hidden && $('levelV').textContent === 'level 1 of 8', 'choosing a condo asks for the floor, starting at level 1');
@@ -181,8 +182,34 @@ w.__terrarium.inspect('home'); ok(/level 6 of 8/.test($('inspect').textContent),
 $('editHome').click(); ok(!$('wr_level').hidden && val('w_level') === '6', 'the set-up dialog shows the floor for a condo, with your saved value');
 setW('w_level', 3); ok(val('level') === '3' && $('levelV').textContent === 'level 3 of 8', 'and edits the same floor the page shows');
 setW('w_house', 'terrace', 'change'); ok($('wr_level').hidden && $('levelRow').hidden, 'switching to a house hides the floor everywhere');
-setW('w_house', 'condo', 'change'); ok(val('w_level') === '3', 'and switching back remembers it'); $('wizDone').click();
+setW('w_house', 'condo', 'change'); ok(val('w_level') === '3', 'and switching back remembers it'); $('wizDone').click(); settle();
 $('signOut').click(); submitGate('floor@example.com'); ok(val('house') === 'condo' && val('level') === '3', 'signing back in restores the condo and its floor');
 $('gStart').click(); ok(!$('level').disabled, 'the floor can still be changed before the first week is locked in'); $('gLock').click(); ok($('level').disabled, 'and it is locked once a week has been played, like the rest of the setup'); $('gQuit').click(); ok(!$('level').disabled, 'and unlocks when the game ends');
 $('signOut').click();
+// first look
+const fl = () => !$('firstLook').hidden, flText = () => $('flBody').textContent;
+ok(w.document.getElementById('firstLook').getAttribute('role') === 'dialog' && w.document.getElementById('firstLook').getAttribute('aria-modal') === 'true', 'the first look is an accessible dialog');
+submitGate('look@example.com'); ok(!fl(), 'it does not open at sign-in, before the home is set up');
+setW('w_house', 'semid', 'change'); $('wizNext').click(); $('lotSel').value = '5'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true })); ok(!fl(), 'nor while the lot is being chosen');
+$('lotConfirm').click();
+ok(fl() && !bar() && $('wizard').hidden, 'confirming the lot ends set-up and opens the first look');
+ok(/Semi-D house on lot 6, would use about \d+ kWh a month, an electricity bill of about RM \d+/.test(flText()) && /about \d\.\d\d km from your lot, around \d+ minutes on foot/.test(flText()), 'it says what the month costs and how far the stop is from that lot');
+ok(/You score \d+ out of one hundred/.test(flText()) && /Strongest: .+\. Weakest: .+\./.test(flText()) && /illustrative until you enter a real bill/.test(flText()), 'with the score, the strongest and weakest pillar, and that it is illustrative');
+const expectChecked = w.TerrariumAI.ask('What would living here cost me?', { input: Object.assign({}, w.Terrarium.DEFAULTS, { house: 'semid', lot: 5 }) }).checked;
+ok($('flCheck').textContent === 'Checked ' + expectChecked + ' figures against the model before showing this.' && expectChecked >= 9 && !/[⦃⦄⟦⟧]/.test(flText()) && !/undefined|NaN/.test(flText()), 'every figure was checked, and nothing raw or broken shows');
+const pageKwh = parseInt(figVal('Electricity this month')); ok(flText().includes(pageKwh + ' kWh a month'), 'and it agrees with the figures on the page');
+$('flPlay').click(); ok(!fl() && $('gLock'), 'Play the month closes it and starts the game'); $('gQuit').click();
+$('myMonth').click(); ok(fl(), 'My month reopens it any time'); w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok(!fl(), 'Escape closes it');
+setRange('trees', 9); $('myMonth').click(); const flAfter = flText(); $('flExplore').click(); ok(!fl(), 'Explore closes it'); ok(flAfter.includes(parseInt(figVal('Electricity this month')) + ' kWh a month'), 'reopened, it reflects the latest home');
+$('myMonth').click(); ok(fl(), 'reopened for the sign-out check'); $('signOut').click(); ok(!fl() && !$('gate').hidden, 'signing out closes the first look and shows the gate'); submitGate('look@example.com'); ok(!fl(), 'and signing back in does not reopen it');
+$('gStart').click(); ok($('myMonth').disabled, 'My month is locked during a game'); $('myMonth').dispatchEvent(new w.Event('click', { bubbles: true })); ok(!fl(), 'and a forced click does nothing'); $('gQuit').click();
+$('signOut').click(); submitGate('look@example.com'); ok(!fl() && $('wizard').hidden, 'a returning user goes straight to their home, with no first look');
+$('editHome').click(); $('wizDone').click(); ok(!fl(), 'editing the home later does not pop it up again');
+$('signOut').click(); submitGate('skip@example.com'); $('wizDone').click();
+ok(fl() && /You have not placed a lot yet/.test(flText()) && /0\.93 km from the township centre/.test(flText()), 'saving without placing a lot still gives a first look, using the real centre distance'); settle();
+$('signOut').click(); submitGate('back@example.com'); $('wizNext').click(); $('lotCancel').click();
+ok(!fl() && !$('wizard').hidden, 'cancelling the lot in a first run goes back to the set-up, not to the dashboard'); $('wizDone').click(); ok(fl(), 'and finishing it then opens the first look'); settle();
+$('signOut').click(); $('gateGuest').click(); $('wizDone').click(); ok(fl() && /would use about/.test(flText()), 'a guest gets the first look too'); settle(); $('signOut').click();
+submitGate('fail@example.com'); const realAsk2 = w.TerrariumAI.ask; w.TerrariumAI.ask = (q, c) => realAsk2(q, c, () => ({ intent: 'x', text: ['It will cost 35% less for sure.'], claims: [], cards: [], calls: [] }));
+$('wizDone').click(); ok(fl() && $('flCheck').textContent.includes('did not pass') && !flText().includes('35%'), 'if the checked answer fails, the dialog says so and shows none of its text'); w.TerrariumAI.ask = realAsk2; settle(); $('signOut').click();
 console.log('site checks passed:', n);

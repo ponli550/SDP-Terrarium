@@ -58,7 +58,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
-  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="signOut">Sign out</button></div>
+  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="signOut">Sign out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
 </header>
 <div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
@@ -80,6 +80,15 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
     <p class="note" style="margin-top:0">Tell us about the home. You can change any of this later, from Edit home.</p>
     <div id="wizFields"></div>
     <div class="row"><button class="cta" type="button" id="wizNext">Next: place your lot</button><button type="button" id="wizDone">Save home</button></div>
+  </div>
+</div>
+<div class="gate" id="firstLook" role="dialog" aria-modal="true" aria-labelledby="flTitle" hidden>
+  <div class="card gatebox">
+    <h2 id="flTitle">Your month in this home</h2>
+    <div id="flBody" class="ans" style="margin-top:6px" aria-live="polite"></div>
+    <div class="chk" id="flCheck"></div>
+    <p class="note">Nothing here is final. You can change the home, move the lot or enter a real bill at any time.</p>
+    <div class="row"><button class="cta" type="button" id="flPlay">Play the month</button><button type="button" id="flExplore">Explore the township</button></div>
   </div>
 </div>
 <div class="layout">

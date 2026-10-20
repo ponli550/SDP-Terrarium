@@ -34,10 +34,11 @@ You pick a home, then run it for a month. **Everything that moves is illustrativ
 ## How it works
 
 1. **Sign in, set your home** (type, air-con, solar, trees, and for a condo your floor), and **place your lot** on the township map. You can edit both later.
-2. **Each week,** set air-con hours, the setpoint and how many short trips you walk.
-3. **Watch the week** play out in the township, with its weather and events.
-4. **Get scored** on SDP's four pillars against a neighbour average.
-5. **Learn the one change** that cuts the most carbon without costing comfort.
+2. **See your month first:** one screen says what living in that home would cost, with every figure checked against the model.
+3. **Each week,** set air-con hours, the setpoint and how many short trips you walk.
+4. **Watch the week** play out in the township, with its weather and events.
+5. **Get scored** on SDP's four pillars against a neighbour average.
+6. **Learn the one change** that cuts the most carbon without costing comfort.
 
 ## The same model drives everything
 
@@ -58,7 +59,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (104 automated tests), the 3D township, the weekly game, 112 page checks and 42 checks in a real browser. Public data only; no SDP data.
+A working prototype in the browser: a tested model (112 automated tests), the 3D township, the weekly game, 137 page checks and 43 checks in a real browser. Public data only; no SDP data.
 
 **Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 

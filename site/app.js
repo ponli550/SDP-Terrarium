@@ -10,7 +10,7 @@
     'trees': function (v) { return v.toFixed(0); }, 'trips': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
   };
   // ---- sign-in, the saved home and the set-up dialog ----
-  var P = window.TerrariumProfile, session = null, store = null;
+  var P = window.TerrariumProfile, session = null, store = null, firstRun = false;
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
   var SHOT = /[?&]shot\b/.test(location.search);
   var DEFAULT_STATE = function () { return Object.assign({}, T.DEFAULTS, { walkShare: 0.2 }); };
@@ -43,13 +43,23 @@
   }
   function chooseLot(i) { if (!placing || !T.validLot(i)) return; st.lot = i; if ($('lotSel').querySelector('option[value=""]')) $('lotSel').innerHTML = $('lotSel').innerHTML.replace('<option value="">Choose a lot</option>', ''); $('lotSel').value = String(i); render(); lotRead(null); }
   function stopPlacing() { placing = null; $('placeBar').hidden = true; if (scene) scene.placeMode(false); }
-  function confirmLot() { if (!placing) return; if (!T.validLot(st.lot)) { $('lotRead').textContent = 'Choose a lot first.'; return; } stopPlacing(); saveProfile(true); showChip(); render(); }
-  function cancelLot() { if (!placing) return; if (placing.prev === undefined) delete st.lot; else st.lot = placing.prev; stopPlacing(); render(); }
+  function confirmLot() { if (!placing) return; if (!T.validLot(st.lot)) { $('lotRead').textContent = 'Choose a lot first.'; return; } stopPlacing(); saveProfile(true); showChip(); render(); if (firstRun) { firstRun = false; showFirstLook(); } }
+  function cancelLot() { if (!placing) return; if (placing.prev === undefined) delete st.lot; else st.lot = placing.prev; stopPlacing(); render(); if (firstRun) openWizard(); }
+  // ---- first look: what a month in this home would cost, shown once set-up is done; every figure is checked before it appears ----
+  function showFirstLook() {
+    var r = window.TerrariumAI.ask('What would living here cost me?', { input: currentInput() }), box = $('flBody');
+    box.innerHTML = r.text.map(function (t) { return '<p>' + esc(window.TerrariumAI.render(t)) + '</p>'; }).join('');
+    $('flCheck').textContent = r.withheld ? 'This summary did not pass the check against the model, so it is not shown.' : 'Checked ' + r.checked + ' figures against the model before showing this.';
+    $('flCheck').className = 'chk' + (r.withheld ? ' bad' : '');
+    $('firstLook').hidden = false; $('flPlay').focus();
+  }
+  function hideFirstLook() { $('firstLook').hidden = true; }
+  function finishSetup() { saveProfile(true); closeWizard(); if (firstRun) { firstRun = false; showFirstLook(); } }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
   function closeWizard() { $('wizard').hidden = true; }
   function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Leave' : 'Sign out'; } }
   function startSession(s) {
-    session = s; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
+    session = s; firstRun = !!(s.isNew || s.setUp === false); Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
     if (st.billKwh === undefined) st.billKwh = null;
     $('gate').hidden = true; showChip(); draft = null; render();
     if (s.isNew || (s.setUp === false)) openWizard();
@@ -68,16 +78,19 @@
     startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew });
   });
   $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
-  $('wizDone').addEventListener('click', function () { saveProfile(true); closeWizard(); });
+  $('wizDone').addEventListener('click', finishSetup);
+  $('myMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
+  $('flExplore').addEventListener('click', hideFirstLook);
+  $('flPlay').addEventListener('click', function () { hideFirstLook(); if ($('gStart')) $('gStart').click(); });
   $('wizNext').addEventListener('click', function () { saveProfile(false); startPlacing(); });
   $('moveHouse').addEventListener('click', function () { startPlacing(); });
   $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
   $('lotConfirm').addEventListener('click', confirmLot);
   $('lotCancel').addEventListener('click', cancelLot);
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (placing) cancelLot(); else if (!$('wizard').hidden) { saveProfile(true); closeWizard(); } });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
   $('signOut').addEventListener('click', function () {
-    store.signOut(); stopPlacing(); session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
+    store.signOut(); stopPlacing(); hideFirstLook(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
     closeWizard(); showChip(); render(); showGate();
   });
@@ -151,7 +164,7 @@
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
     chart(s.you.days); gameView(input, s);
-    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = !!g;
+    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = !!g;
     if (!scene) onClock(clockDay, 12);
   }
   function chart(days) {
@@ -280,8 +293,9 @@
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
+  if (SHOT && q0.has('firstlook')) showFirstLook();
   if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }
-  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), inspect: vis('inspect'), skip: vis('skip') }); }
+  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
