@@ -48,6 +48,8 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
 .hud-bc{bottom:64px;left:50%;transform:translateX(-50%);width:min(470px,92%)}.hud-bc select{width:100%;padding:7px;border-radius:8px;border:1px solid rgba(0,0,0,.18);background:#fff;color:#16241a;font:inherit}.hud-bc .rd{font-size:12px;color:#5b6b5f;margin:6px 0}
 .tag3d.lotlabel{background:rgba(21,101,192,.82)}
+.cmpgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.cmpgrid select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
+table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cmp th,.cmp td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right}.cmp th:first-child,.cmp td:first-child{text-align:left}.cmp thead th{color:var(--mute);font-weight:600;font-size:12px}.cmp td.win{font-weight:700;color:var(--g1)}.cmp .tick{margin-left:3px}.cmp tr.sum td{border-top:2px solid var(--line)}
 .tag3d{position:absolute;left:0;top:0;pointer-events:none;background:rgba(22,36,26,.82);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap}.tag3d.dim{background:rgba(21,101,192,.85)}
 .nowebgl{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:#16241a;background:#e8f3df}
 .layout{display:grid;gap:14px;padding:14px 16px;max-width:1500px;margin:0 auto;grid-template-columns:minmax(300px,360px) 1fr}
@@ -58,7 +60,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
-  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="signOut">Sign out</button></div>
+  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="compareBtn">Compare</button><button type="button" id="signOut">Sign out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
 </header>
 <div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
@@ -88,7 +90,23 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
     <div id="flBody" class="ans" style="margin-top:6px" aria-live="polite"></div>
     <div class="chk" id="flCheck"></div>
     <p class="note">Nothing here is final. You can change the home, move the lot or enter a real bill at any time.</p>
-    <div class="row"><button class="cta" type="button" id="flPlay">Play the month</button><button type="button" id="flExplore">Explore the township</button></div>
+    <div class="row"><button class="cta" type="button" id="flPlay">Play the month</button><button type="button" id="flCompare">Compare with another lot</button><button type="button" id="flExplore">Explore the township</button></div>
+  </div>
+</div>
+<div class="gate" id="compare" role="dialog" aria-modal="true" aria-labelledby="cmpTitle" hidden>
+  <div class="card gatebox" style="width:min(740px,100%)">
+    <h2 id="cmpTitle">Compare homes</h2>
+    <p class="note" style="margin-top:0">Option A is your home. Choose an option B. Both use your habits (air-con, solar, trees, walking), so only the home and the lot differ.</p>
+    <div class="cmpgrid">
+      <div><label for="cmpHouse">Option B: home</label><select id="cmpHouse"></select></div>
+      <div id="cmpLevelRow" hidden><label for="cmpLevel">Floor <span id="cmpLevelV"></span></label><input type="range" id="cmpLevel" min="1" max="8" step="1"></div>
+      <div><label for="cmpLot">Option B: lot</label><select id="cmpLot"></select></div>
+    </div>
+    <div id="cmpTable"></div>
+    <div id="cmpSay" class="ans" aria-live="polite"></div>
+    <div class="chk" id="cmpCheck"></div>
+    <p class="note">Lot distances come from a drawn layout scaled from the real 0.93 km centre distance, so they are illustrative, and so is every other figure here.</p>
+    <div class="row"><button class="cta" type="button" id="cmpApply">Make option B my home</button><button type="button" id="cmpClose">Close</button></div>
   </div>
 </div>
 <div class="layout">

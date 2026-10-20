@@ -16,6 +16,7 @@
   var UNIT = { monthKwh: 'kWh', monthBill: 'RM', carbonKg: 'kg', carRm: 'RM', walkMin: 'minutes', comfortPct: '%', solarKwh: 'kWh' };
   var EXAMPLES = ['What would living here cost me?', 'Give me the briefing', 'Where does the carbon number come from?', 'How do I compare with my neighbours?', 'What should I change first?', 'What if I run the air-con 2 hours less?', 'Why is my energy score what it is?', 'How far is the bus stop?'];
 
+  var altOf = function (ctx) { return ctx && ctx.alt ? Object.assign({}, T.DEFAULTS, ctx.alt) : null; };
   var scoresOf = function (ctx) { return ctx._s || (ctx._s = T.scores(ctx.input)); };
   function leverEffect(input, key) {
     var lv = T.LEVERS.find(function (l) { return l.key === key; }); if (!lv) return null;
@@ -42,6 +43,22 @@
       if (top) b.text.push('The change that cuts the most carbon without costing comfort: ' + nm(top.label) + ', about ' + fg(b.cl({ kind: 'lever', lever: top.key, field: 'carbonKg', value: Math.round(top.carbonKg) }), fnum(top.carbonKg, 0)) + ' kg a month.');
       else b.text.push('No single change cuts carbon without costing comfort: that is ' + fg(b.cl({ kind: 'count', what: 'suggestions', value: 0 }), '0') + ' changes to suggest.');
       b.text.push(f.monthKwh.grade === 'REAL' ? 'The electricity figure is matched to your own bill; every other figure is illustrative.' : 'Every figure here is illustrative until you enter a real bill.');
+    } },
+    compare_homes: { kind: 'read', describe: 'Your home against an alternative: what differs and by how much.', params: {}, run: function (a, ctx, b) {
+      var alt = altOf(ctx); if (!alt) { b.text.push('Pick an option B first, from Compare.'); return; }
+      var c = T.compare(ctx.input, alt), clauses = [], word = function (d, neg, pos) { return d < 0 ? neg : pos; };
+      b.text.push('Option B is ' + nm(c.labelB) + '; your home is ' + nm(c.labelA) + '.');
+      [['stopKm', function (r, i) { return 'the bus stop ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' km ' + word(r.diff, 'nearer', 'farther'); }],
+       ['monthKwh', function (r, i) { return 'about ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' kWh a month ' + word(r.diff, 'less', 'more') + ' electricity'; }],
+       ['monthBill', function (r, i) { return 'RM ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' a month ' + word(r.diff, 'less', 'more') + ' on the electricity bill'; }],
+       ['carbonKg', function (r, i) { return 'about ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' kg of carbon a month ' + word(r.diff, 'less', 'more'); }],
+       ['carRm', function (r, i) { return 'RM ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' a month ' + word(r.diff, 'less', 'more') + ' on short car trips'; }],
+       ['total', function (r, i) { return 'a home score ' + fg(i, fnum(Math.abs(r.diff), r.dec)) + ' points ' + word(r.diff, 'lower', 'higher'); }]].forEach(function (p) {
+        var r = c.row(p[0]); if (r.diff === 0) return; clauses.push(p[1](r, b.cl({ kind: 'compare', field: p[0], value: r.diff })));
+      });
+      if (clauses.length) b.text.push('Compared with your home, option B has ' + clauses.join('; ') + '.');
+      else b.text.push('The two come out the same on distance, electricity, carbon, car cost and score' + fg(b.cl({ kind: 'compare', field: 'same', value: 0 }), '') + '.');
+      b.text.push('Both use your habits, so only the home and the lot differ. Every figure is illustrative.');
     } },
     briefing: { kind: 'read', describe: 'The month in plain words: use, bill, carbon, home score.', params: {}, run: function (a, ctx, b) {
       var S = scoresOf(ctx), f = S.you.figures;
@@ -114,6 +131,7 @@
     else if (/walk|on foot/.test(q) && !/score/.test(q)) lever = 'walkShare';
     else if (/tree|plant/.test(q)) lever = 'trees';
     else if (/solar|panel/.test(q)) lever = 'solarKwp';
+    if (altOf(ctx) && !/neighbour|neighbor|average/.test(q) && /compare|versus|option b|other (home|lot)|which is better/.test(q)) return { intent: 'comparehomes', calls: [{ tool: 'compare_homes', args: {} }] };
     if (/first look|what would living|cost me to live|living here|my month in this home/.test(q)) return { intent: 'firstlook', calls: [{ tool: 'first_look', args: {} }] };
     if (/(apply|do it|go ahead|make that change|confirm)/.test(q)) return { intent: 'propose', calls: [{ tool: 'propose_change', args: { lever: lever || (T.suggest(ctx.input, 1)[0] || {}).key || 'acHours' } }] };
     if (lever && /(what if|if i|should i|would|how much|effect|save)/.test(q)) return { intent: 'whatif', calls: [{ tool: 'what_if', args: { lever: lever } }] };
@@ -157,6 +175,13 @@
       case 'lot': { var lt = T.lotInfo(ctx.input.lot); if (!lt) return null; return c.field === 'n' && lt.n === c.value ? [String(lt.n)] : c.field === 'km' && Math.round(lt.km * 100) / 100 === c.value ? tokensOf(fnum(lt.km, 2)) : c.field === 'walkMin' && Math.round(lt.walkMin) === c.value ? [String(c.value)] : null; }
       case 'level': { if (ctx.input.house !== 'condo') return null; var lv = Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(ctx.input.level) || 1))); return lv === c.value ? [String(lv)] : null; }
       case 'pillarExtreme': { var ps = S.pillars; var best = ps.reduce(function (m, p) { return (c.which === 'max' ? p.score > m.score : p.score < m.score) ? p : m; }); return (c.which === 'max' || c.which === 'min') && best.key === c.key ? [] : null; }
+      case 'compare': {
+        var alt = altOf(ctx); if (!alt) return null;
+        var cm = T.compare(ctx.input, alt), fields = ['monthKwh', 'monthBill', 'carbonKg', 'carRm', 'stopKm', 'total'];
+        if (c.field === 'same') return c.value === 0 && fields.every(function (k) { return cm.row(k).diff === 0; }) ? [] : null;
+        if (fields.indexOf(c.field) < 0) return null;
+        var rw = cm.row(c.field); return rw.diff === c.value ? tokensOf(fnum(Math.abs(c.value), rw.dec)) : null;
+      }
       case 'assumption': { var a = T.ASSUME[c.name]; return a ? tokensOf(fnum(a.v, 3) + ' ' + a.note) : null; }
       case 'change': { var lv = T.LEVERS.find(function (l) { return l.key === c.lever; }); return lv ? tokensOf(lv.label) : null; }
       case 'count': return c.what === 'suggestions' && T.suggest(ctx.input, 5).length === c.value ? [String(c.value)] : null;
@@ -179,6 +204,7 @@
     var problems = [], allowed = ans.claims.map(function (c, i) { var t = claimTokens(c, ctx); if (t === null) problems.push('Claim ' + (i + 1) + ' (' + (c && c.kind) + ') is not supported by the model.'); return t; });
     var known = {}; scoresOf(ctx).pillars.forEach(function (p) { known[p.name] = 1; }); T.LEVERS.forEach(function (l) { known[l.label] = 1; });
     Object.keys(T.HOUSES).forEach(function (h) { known[T.HOUSES[h].label] = 1; });
+    if (altOf(ctx)) { var cmpNames = T.compare(ctx.input, altOf(ctx)); known[cmpNames.labelA] = 1; known[cmpNames.labelB] = 1; }
     Object.keys(scoresOf(ctx).you.figures).forEach(function (k) { known[scoresOf(ctx).you.figures[k].label] = 1; });
     var text = ans.text.join('\n'), m;
     (text.match(/⟦[^⟧]*⟧/g) || []).forEach(function (x) { if (!known[x.slice(1, -1)]) problems.push('Unknown name ' + x.slice(1, -1) + '.'); });

@@ -212,4 +212,46 @@ ok(!fl() && !$('wizard').hidden, 'cancelling the lot in a first run goes back to
 $('signOut').click(); $('gateGuest').click(); $('wizDone').click(); ok(fl() && /would use about/.test(flText()), 'a guest gets the first look too'); settle(); $('signOut').click();
 submitGate('fail@example.com'); const realAsk2 = w.TerrariumAI.ask; w.TerrariumAI.ask = (q, c) => realAsk2(q, c, () => ({ intent: 'x', text: ['It will cost 35% less for sure.'], claims: [], cards: [], calls: [] }));
 $('wizDone').click(); ok(fl() && $('flCheck').textContent.includes('did not pass') && !flText().includes('35%'), 'if the checked answer fails, the dialog says so and shows none of its text'); w.TerrariumAI.ask = realAsk2; settle(); $('signOut').click();
+// compare
+const cmpOpen = () => !$('compare').hidden, cmpRows = () => [...$('cmpTable').querySelectorAll('tbody tr')];
+const cmpRow = (label) => cmpRows().find((r) => r.querySelector('th').textContent.startsWith(label));
+const cmpCell = (label, col) => cmpRow(label).querySelectorAll('td')[col - 1];   // column 1 is A, 2 is B, 3 is the difference (the label is a th)
+const r2 = (x) => Math.round(x * 100) / 100, shownDiff = (a, b) => Math.abs(r2(r2(b) - r2(a))).toFixed(2);   // the difference of the two rounded numbers on screen, so the columns always subtract
+const pickB = (id, v, ev) => { const e = $(id); e.value = v; e.dispatchEvent(new w.Event(ev || 'change', { bubbles: true })); };
+ok(w.document.getElementById('compare').getAttribute('role') === 'dialog' && w.document.getElementById('compare').getAttribute('aria-modal') === 'true', 'the comparison is an accessible dialog');
+submitGate('cmp@example.com'); setW('w_house', 'terrace', 'change'); $('wizNext').click(); pickB('lotSel', '1'); $('lotConfirm').click(); settle(); setRange('trees', 4);
+ok(!cmpOpen(), 'the comparison starts closed'); $('compareBtn').click();
+ok(cmpOpen() && cmpRows().length === 11 && /Compared with your home, option B has/.test($('cmpSay').textContent), 'Compare opens a table of eleven figures with a summary');
+const lotNear = w.Terrarium.nearestOtherLot(1);
+ok($('cmpLot').value === String(lotNear) && $('cmpHouse').value === 'terrace', 'option B starts as your home on the lot nearest the bus stop');
+ok(/^A: Terrace house, lot 2$/.test($('cmpTable').querySelectorAll('thead th')[1].textContent) && /^B: Terrace house, lot \d+$/.test($('cmpTable').querySelectorAll('thead th')[2].textContent), 'the columns name the two homes');
+const li = w.Terrarium.lotInfo(lotNear);
+ok(cmpCell('Distance to the bus stop', 1).textContent.startsWith(w.Terrarium.lotInfo(1).km.toFixed(2) + ' km') && cmpCell('Distance to the bus stop', 2).textContent.startsWith(li.km.toFixed(2) + ' km'), 'the distances are each lot\'s own');
+ok(cmpCell('Distance to the bus stop', 2).classList.contains('win') && cmpCell('Distance to the bus stop', 2).textContent.includes('\u2713') && !cmpCell('Distance to the bus stop', 1).classList.contains('win'), 'the nearer lot is marked better, and only it');
+ok(cmpCell('Electricity per month', 3).textContent === 'same' && !cmpCell('Electricity per month', 1).classList.contains('win') && !cmpCell('Electricity per month', 2).classList.contains('win'), 'a figure that does not differ says same and wins nothing');
+ok(/^Checked \d+ figures? against the model/.test($('cmpCheck').textContent) && !/[⦃⦄⟦⟧]/.test($('cmpSay').textContent) && !/undefined|NaN/.test($('cmpTable').textContent + $('cmpSay').textContent), 'the summary was checked, with nothing raw or broken');
+ok(cmpCell('Distance to the bus stop', 3).textContent === '\u2212' + shownDiff(w.Terrarium.lotInfo(1).km, li.km) + ' km', 'a nearer option B shows a minus difference, worked out from the two numbers shown');
+pickB('cmpLot', '11'); ok(cmpCell('Distance to the bus stop', 2).textContent.startsWith(w.Terrarium.lotInfo(11).km.toFixed(2) + ' km'), 'choosing another lot updates the table');
+const farLot = [...Array(12).keys()].sort((x, y) => w.Terrarium.lotDistanceKm(y) - w.Terrarium.lotDistanceKm(x))[0]; pickB('cmpLot', String(farLot));
+ok(cmpCell('Distance to the bus stop', 3).textContent === '+' + shownDiff(w.Terrarium.lotInfo(1).km, w.Terrarium.lotInfo(farLot).km) + ' km', 'and a farther one shows a plus');
+ok(cmpCell('Distance to the bus stop', 1).classList.contains('win') && /farther/.test($('cmpSay').textContent), 'a farther lot makes your own home the better one on distance, and the summary says farther');
+ok($('cmpLevelRow').hidden, 'no floor control for a house'); pickB('cmpHouse', 'condo'); ok(!$('cmpLevelRow').hidden && /Condominium, level 1/.test($('cmpTable').textContent), 'choosing a condo asks for its floor');
+pickB('cmpLevel', '4', 'input'); ok(/Condominium, level 4, lot/.test($('cmpTable').textContent) && $('cmpLevelV').textContent === 'level 4 of 8', 'and the floor shows in the table');
+ok(cmpCell('Electricity per month', 2).classList.contains('win'), 'the smaller condo uses less electricity and is marked better');
+pickB('cmpHouse', 'terrace'); pickB('cmpLot', '1');
+ok($('cmpApply').disabled && /come out the same/.test($('cmpSay').textContent) && !$('cmpTable').querySelector('.win'), 'option B equal to your home: nothing wins, the summary says so, and there is nothing to apply');
+pickB('cmpHouse', 'condo'); pickB('cmpLevel', '4', 'input'); pickB('cmpLot', '5'); const beforeHome = [val('house'), val('level')];
+$('cmpClose').click(); ok(!cmpOpen() && val('house') === beforeHome[0], 'Close changes nothing');
+$('compareBtn').click(); pickB('cmpHouse', 'condo'); pickB('cmpLevel', '4', 'input'); pickB('cmpLot', '5'); ok(!$('cmpApply').disabled, 'a different option B can be applied');
+$('cmpApply').click();
+ok(!cmpOpen() && val('house') === 'condo' && val('level') === '4' && stored().users['cmp@example.com'].home.lot === 5 && stored().users['cmp@example.com'].home.house === 'condo', 'Make option B my home closes the dialog, changes the home and saves it');
+$('compareBtn').click(); ok(/^A: Condominium, level 4, lot 6$/.test($('cmpTable').querySelectorAll('thead th')[1].textContent), 'and option A is now that home'); w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok(!cmpOpen(), 'Escape closes it');
+$('gStart').click(); ok($('compareBtn').disabled, 'Compare is locked during a game'); $('compareBtn').dispatchEvent(new w.Event('click', { bubbles: true })); ok(!cmpOpen(), 'and a forced click does nothing'); $('gQuit').click();
+$('compareBtn').click(); ok(cmpOpen(), 'reopened for the sign-out check'); $('signOut').click(); ok(!cmpOpen() && !$('gate').hidden, 'signing out closes it');
+submitGate('nolot@example.com'); $('wizDone').click(); ok(fl(), 'a first look opens when set-up ends without a lot');
+$('flCompare').click(); ok(!fl() && cmpOpen(), 'Compare with another lot, from the first look, opens the comparison');
+ok(cmpCell('Distance to the bus stop', 1).textContent.startsWith('0.93 km') && $('cmpLot').value === String(w.Terrarium.nearestOtherLot(-1)) && /lot not placed/.test($('cmpTable').textContent), 'with no lot placed, A uses the real centre distance and B starts on the nearest lot');
+const realAsk3 = w.TerrariumAI.ask; w.TerrariumAI.ask = (q, c) => realAsk3(q, c, () => ({ intent: 'x', text: ['Option B saves 99% for sure.'], claims: [], cards: [], calls: [] })); pickB('cmpLot', '3');
+ok($('cmpCheck').textContent.includes('did not pass') && !$('cmpSay').textContent.includes('99%') && cmpRows().length === 11, 'if the checked summary fails it says so and shows none of its text, while the table, which is plain arithmetic, still shows'); w.TerrariumAI.ask = realAsk3;
+$('cmpClose').click(); $('signOut').click();
 console.log('site checks passed:', n);

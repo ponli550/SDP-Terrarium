@@ -47,9 +47,10 @@ h = dump('gate=1&frames=4'); let ui = JSON.parse(attr(h, 'ui'));
 ok(ui.gate !== 'none' && ui.wizard === 'none' && ui.chip === 'none', 'at the gate: the gate is drawn, the dialog and the user chip are not (gate ' + ui.gate + ', wizard ' + ui.wizard + ', chip ' + ui.chip + ')');
 h = dump('wizard=1&frames=4'); ui = JSON.parse(attr(h, 'ui'));
 ok(ui.wizard !== 'none' && ui.gate === 'none' && ui.chip !== 'none', 'in set-up: the dialog and the chip are drawn, the gate is not');
+h = dump('compare=1&lot=1&trees=4&frames=4'); ui = JSON.parse(attr(h, 'ui')); ok(ui.compare !== 'none' && ui.firstLook === 'none' && ui.gate === 'none', 'the comparison is drawn when open (compare ' + ui.compare + ')');
 h = dump('firstlook=1&lot=5&frames=4'); ui = JSON.parse(attr(h, 'ui')); ok(ui.firstLook !== 'none' && ui.gate === 'none' && ui.wizard === 'none', 'the first look is drawn when open, and only it (first look ' + ui.firstLook + ')');
 h = dump('frames=4'); ui = JSON.parse(attr(h, 'ui'));
-ok(ui.gate === 'none' && ui.wizard === 'none' && ui.firstLook === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
+ok(ui.gate === 'none' && ui.wizard === 'none' && ui.firstLook === 'none' && ui.compare === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
 
 // placing your lot: a real pointer click on a pad moves the home, and only while placing
 h = dump('place=1&clicklot=5&frames=40&day=1&hour=12'); let pl = JSON.parse(attr(h, 'state'));

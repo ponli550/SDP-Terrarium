@@ -187,3 +187,59 @@ test('verifier: a level claim holds only for a condo and only for its own floor;
   const wm = (v) => () => base(['About ' + f(0, String(v)) + ' minutes.'], [{ kind: 'lot', field: 'walkMin', value: v }]);
   assert.ok(!A.ask('x', condoC, wm(Math.round(li.walkMin))).withheld && A.ask('x', condoC, wm(Math.round(li.walkMin) + 9)).withheld);
 });
+
+// ---- compare homes ----
+const cmpIn = Object.assign({}, T.DEFAULTS, { lot: 1, trees: 4 });
+const cmpAsk = (alt, q) => A.ask(q || 'compare the two homes', { input: cmpIn, alt: alt });
+test('compare: verified for a nearer lot, a different home type, a trade-off, and an identical pair', () => {
+  for (const alt of [Object.assign({}, cmpIn, { lot: 5 }), Object.assign({}, cmpIn, { house: 'condo', level: 4, lot: 5 }), Object.assign({}, cmpIn, { house: 'semid', lot: 0 }), Object.assign({}, cmpIn)]) {
+    const r = cmpAsk(alt); assert.ok(!r.withheld && r.checked >= 1, JSON.stringify(alt) + ' ' + (r.problems || []).join(';')); assert.ok(!/[⦃⦄⟦⟧]/.test(words(r)) && !/undefined|NaN/.test(words(r)));
+  }
+});
+test('compare: every number and every less/more/nearer/farther/higher/lower is the comparison\'s own', () => {
+  const pairs = [Object.assign({}, cmpIn, { lot: 5 }), Object.assign({}, cmpIn, { house: 'condo', level: 4, lot: 5 }), Object.assign({}, cmpIn, { house: 'semid', lot: 0 }), Object.assign({}, cmpIn, { lot: 11, solarKwp: 0, house: 'condo', level: 8 })];
+  for (const alt of pairs) {
+    const c = T.compare(cmpIn, alt), t = words(cmpAsk(alt)), fn = (n, d) => String(Number(Math.abs(n).toFixed(d)));
+    const expect = { stopKm: (r) => `the bus stop ${fn(r.diff, 2)} km ${r.diff < 0 ? 'nearer' : 'farther'}`, monthKwh: (r) => `about ${fn(r.diff, 0)} kWh a month ${r.diff < 0 ? 'less' : 'more'} electricity`, monthBill: (r) => `RM ${fn(r.diff, 0)} a month ${r.diff < 0 ? 'less' : 'more'} on the electricity bill`, carbonKg: (r) => `about ${fn(r.diff, 0)} kg of carbon a month ${r.diff < 0 ? 'less' : 'more'}`, carRm: (r) => `RM ${fn(r.diff, 0)} a month ${r.diff < 0 ? 'less' : 'more'} on short car trips`, total: (r) => `a home score ${fn(r.diff, 0)} points ${r.diff < 0 ? 'lower' : 'higher'}` };
+    for (const k of Object.keys(expect)) { const r = c.row(k); if (r.diff === 0) assert.ok(!t.includes(expect[k]({ diff: 1 }).split(' ').slice(0, 2).join(' ') + ' ' + 'zzz'), k); else assert.ok(t.includes(expect[k](r)), k + ' -> ' + t); }
+    assert.ok(t.includes('Option B is ' + c.labelB + '; your home is ' + c.labelA + '.'));
+  }
+});
+test('compare: a pair that differs in nothing says so, and a pair that differs never says so', () => {
+  assert.ok(words(cmpAsk(Object.assign({}, cmpIn))).includes('come out the same on distance, electricity, carbon, car cost and score'));
+  assert.ok(!words(cmpAsk(Object.assign({}, cmpIn, { lot: 5 }))).includes('come out the same'));
+});
+test('compare: a figure that does not differ is left out instead of saying "0 less"', () => {
+  const t = words(cmpAsk(Object.assign({}, cmpIn, { lot: 5 }))); assert.ok(!/\b0 (kWh|km|points)\b|RM 0\b/.test(t) && !/electricity bill/.test(t));
+});
+test('compare: with no option B it asks for one, and says nothing it cannot back', () => {
+  const r = A.ask('compare the two homes', { input: cmpIn, alt: null }); assert.ok(!r.withheld);
+  const direct = A.answerQuestion('x', { input: cmpIn }, () => ({ intent: 'x', calls: [{ tool: 'compare_homes', args: {} }] }));
+  assert.ok(direct.text[0].includes('Pick an option B first') && direct.claims.length === 0);
+});
+test('compare: routed when an option B exists, and never steals the neighbour comparison', () => {
+  const alt = Object.assign({}, cmpIn, { lot: 5 }), tool = (q, c) => A.rulePlanner(q, c).calls[0].tool;
+  for (const q of ['compare the two homes', 'which is better?', 'option B versus mine', 'compare the other lot']) assert.strictEqual(tool(q, { input: cmpIn, alt: alt }), 'compare_homes', q);
+  for (const q of ['How do I compare with my neighbours?', 'compare me with the average']) assert.strictEqual(tool(q, { input: cmpIn, alt: alt }), 'compare_neighbour', q);
+  assert.strictEqual(tool('how do i compare with my neighbours?', { input: cmpIn }), 'compare_neighbour');
+});
+test('verifier: a compare claim holds only for the real signed difference, on a real field, with an option B', () => {
+  const alt = Object.assign({}, cmpIn, { house: 'condo', level: 4, lot: 5 }), c = T.compare(cmpIn, alt), kwhDiff = c.row('monthKwh').diff;
+  const mk = (field, v, ctxAlt) => A.ask('x', { input: cmpIn, alt: ctxAlt === undefined ? alt : ctxAlt }, () => base(['It is ' + f(0, String(Math.abs(v))) + '.'], [{ kind: 'compare', field: field, value: v }]));
+  assert.ok(!mk('monthKwh', kwhDiff).withheld);
+  assert.ok(mk('monthKwh', -kwhDiff).withheld, 'the wrong sign is a false claim'); assert.ok(mk('monthKwh', kwhDiff + 5).withheld); assert.ok(mk('monthBill', kwhDiff).withheld);
+  assert.ok(mk('pillar:energy', 1).withheld && mk('nonsense', 1).withheld, 'only the listed fields can be claimed'); assert.ok(mk('monthKwh', kwhDiff, null).withheld, 'no option B means no compare claim holds');
+  const same = (v, ctxAlt) => A.ask('x', { input: cmpIn, alt: ctxAlt }, () => base(['Same' + f(0, '') + '.'], [{ kind: 'compare', field: 'same', value: v }]));
+  assert.ok(!same(0, Object.assign({}, cmpIn)).withheld, 'a true "same" passes'); assert.ok(same(0, alt).withheld, 'a false "same" is withheld'); assert.ok(same(1, Object.assign({}, cmpIn)).withheld);
+  assert.ok(A.ask('x', { input: cmpIn, alt: Object.assign({}, cmpIn) }, () => base(['Same ' + f(0, '0') + '.'], [{ kind: 'compare', field: 'same', value: 0 }])).withheld, '"same" allows no figure');
+});
+test('verifier: the names of the two homes are accepted only when an option B exists', () => {
+  const alt = Object.assign({}, cmpIn, { lot: 5 }), name = T.compare(cmpIn, alt).labelB;
+  assert.ok(!A.ask('x', { input: cmpIn, alt: alt }, () => base(['See ⟦' + name + '⟧.'])).withheld);
+  assert.ok(A.ask('x', { input: cmpIn, alt: alt }, () => base(['See ⟦Terrace house, lot 99⟧.'])).withheld);
+  assert.ok(A.ask('x', { input: cmpIn }, () => base(['See ⟦' + name + '⟧.'])).withheld);
+});
+test('compare: deterministic, and it never changes either input', () => {
+  const alt = Object.assign({}, cmpIn, { lot: 5 }), a0 = JSON.stringify(cmpIn), b0 = JSON.stringify(alt);
+  assert.deepStrictEqual(cmpAsk(alt), cmpAsk(alt)); assert.strictEqual(JSON.stringify(cmpIn), a0); assert.strictEqual(JSON.stringify(alt), b0);
+});
