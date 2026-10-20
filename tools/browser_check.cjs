@@ -62,6 +62,11 @@ h = dump('place=1&leave=1&frames=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.
 h = dump('frames=12'); ok(JSON.parse(attr(h, 'state')).padsVisible === 0, 'and in normal use no pad is drawn');
 for (const k of ['home', 'neighbour', 'stop']) { h = dump('clickkind=' + k + '&frames=24&day=1&hour=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.selectedKind === k, 'a real click on the ' + k + ' inspects it (selected ' + pl.selectedKind + ')'); }
 h = dump('place=1&clickkind=neighbour&frames=24&day=1&hour=12'); pl = JSON.parse(attr(h, 'state')); ok(pl.selectedKind === null && pl.lot !== 0, 'while placing, a click on a neighbour chooses its lot and does not inspect it (selected ' + pl.selectedKind + ', lot ' + pl.lot + ')');
+// condo levels: your window and the air-con sit at your own level on the tower
+const unitY = (q) => JSON.parse(attr(dump(q + '&frames=14&day=1&hour=12'), 'state')).unitY;
+ok(unitY('house=condo&level=1') === 3 && Math.abs(unitY('house=condo&level=6') - 20) < 1e-9 && Math.abs(unitY('house=condo&level=8') - 26.8) < 1e-9, 'a condo unit stands at its own level: 3, 20 and 26.8 for levels 1, 6 and 8');
+ok(Math.abs(unitY('house=condo&level=1&level2=6') - 20) < 1e-9, 'changing the level after the tower is built moves your unit to the new floor');
+ok(unitY('house=terrace&level=8') === 5 && unitY('house=semid&level=1') === 5, 'a house ignores the level');
 h = dump('lot=11&house=condo&frames=20&day=1&hour=12'); pl = JSON.parse(attr(h, 'state'));
 ok(pl.lot === 11 && pl.homePos.x === 26 && pl.homePos.z === -42, 'a saved lot puts the home on that lot');
 ok(pl.neighbours === 11 && pl.neighAtHome === 0, 'and the neighbours stand on the other eleven lots, none on yours (' + pl.neighbours + ' neighbours, ' + pl.neighAtHome + ' on your lot)');

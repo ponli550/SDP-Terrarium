@@ -352,3 +352,57 @@ test('plot trees stand in the rear yard, clear of every building, whatever the l
     }
   }
 });
+
+// ---- condo levels ----
+const condo = (o) => Object.assign({}, T.DEFAULTS, { house: 'condo', trees: 6, walkShare: 0.5 }, o);
+const kwh = (o) => T.simulate(condo(o)).figures.monthKwh.value;
+test('only a condo has a level: every other home gives the same month at any level', () => {
+  for (const house of ['terrace', 'semid']) {
+    const a = T.simulate(Object.assign({}, T.DEFAULTS, { house: house, level: 1, trees: 6 })).figures, b = T.simulate(Object.assign({}, T.DEFAULTS, { house: house, level: 8, trees: 6 })).figures;
+    for (const k of Object.keys(a)) assert.strictEqual(a[k].value, b[k].value, house + ' ' + k);
+  }
+  assert.notStrictEqual(kwh({ level: 1 }), kwh({ level: 8 }));
+});
+test('plot trees shade only the lowest levels: level 1 benefits, level 4 and above do not', () => {
+  const saving = (level) => kwh({ level: level, trees: 0 }) - kwh({ level: level, trees: 10 });
+  assert.ok(saving(1) > saving(2) && saving(2) > saving(3) && saving(3) > 0);
+  for (const l of [4, 5, 6, 7, 8]) assert.strictEqual(saving(l), 0, 'level ' + l);
+});
+test('only the top floor pays for the roof, by the stated factor on the air-con share', () => {
+  assert.strictEqual(kwh({ level: 4, trees: 0 }), kwh({ level: 7, trees: 0 }));
+  const top = kwh({ level: 8, trees: 0 }), below = kwh({ level: 7, trees: 0 }), base = T.HOUSES.condo.baseKwhDay * 30;
+  assert.ok(Math.abs((top - base) / (below - base) - (1 + T.ASSUME.roofHeat.v)) < 1e-9);
+});
+test('walking minutes grow with the level by exactly the lift time; trips, car cost and carbon do not move', () => {
+  const f = (level) => T.simulate(condo({ level: level })).figures, walked = f(1).walkedTrips.value;
+  for (let l = 1; l <= 8; l++) {
+    const expect = walked * 2 * (T.ASSUME.stopKm.v * T.ASSUME.walkMinKm.v + T.ASSUME.liftMin.v + T.ASSUME.liftPerLevel.v * l);
+    assert.ok(Math.abs(f(l).walkMin.value - expect) < 1e-9, 'level ' + l);
+    assert.strictEqual(f(l).walkedTrips.value, walked); assert.strictEqual(f(l).carRm.value, f(1).carRm.value);
+  }
+  assert.ok(f(8).walkMin.value > f(1).walkMin.value);
+});
+test('a bad level is clamped to a real floor: nothing breaks and the answer is a floor between 1 and 8', () => {
+  assert.strictEqual(kwh({ level: 0 }), kwh({ level: 1 })); assert.strictEqual(kwh({ level: 99 }), kwh({ level: 8 }));
+  assert.strictEqual(kwh({ level: 2.6 }), kwh({ level: 3 }));
+  for (const bad of [NaN, 'x', null, undefined, -4]) assert.ok(isFinite(kwh({ level: bad })) && kwh({ level: bad }) === kwh({ level: 1 }), String(bad));
+  assert.strictEqual(T.CONDO_LEVELS, 8);
+});
+test('the level does not change who the neighbour is, and the neighbour comparison still centres on 50', () => {
+  const s = T.scores(condo({ level: 8 })); assert.strictEqual(s.neighbour.figures.monthKwh.value, T.simulate(T.NEIGHBOUR).figures.monthKwh.value);
+  const same = T.scores(Object.assign({}, T.NEIGHBOUR)); for (const i of [0, 2, 3]) assert.ok(Math.abs(same.pillars[i].score - 50) < 1e-9);
+});
+test('the home and walking panels show the level and the lift time for a condo, and not for a house', () => {
+  const row = (i, k, r) => T.inspectInfo(k, i, { day: 2, hour: 10 }).rows.find((x) => x.k === r);
+  assert.strictEqual(row(condo({ level: 8 }), 'home', 'Level').v, 'level 8 of 8, under the roof'); assert.strictEqual(row(condo({ level: 3 }), 'home', 'Level').v, 'level 3 of 8');
+  assert.strictEqual(row(T.DEFAULTS, 'home', 'Level').v, 'ground (a house)');
+  assert.strictEqual(row(condo({ level: 8 }), 'person', 'Lift or stairs, each way').v, (T.ASSUME.liftMin.v + T.ASSUME.liftPerLevel.v * 8).toFixed(1) + ' min');
+  assert.strictEqual(row(condo({ level: 8 }), 'person', 'Lift or stairs, each way').grade, 'ILLUSTRATIVE'); assert.strictEqual(row(T.DEFAULTS, 'person', 'Lift or stairs, each way'), undefined);
+});
+test('every level assumption is stated as a placeholder with a note', () => {
+  for (const k of ['roofHeat', 'shadeLevels', 'liftMin', 'liftPerLevel']) assert.deepStrictEqual([T.ASSUME[k].grade, T.ASSUME[k].note.length > 15], ['ILLUSTRATIVE', true], k);
+});
+test('suggestions do not offer trees to a condo above the shade line, and do for a low level', () => {
+  const high = T.suggest(condo({ level: 6, trees: 0, acHours: 8, solarKwp: 8, walkShare: 1 }), 5).map((x) => x.key), low = T.suggest(condo({ level: 1, trees: 0, acHours: 8, solarKwp: 8, walkShare: 1 }), 5).map((x) => x.key);
+  assert.ok(!high.includes('trees')); assert.ok(low.includes('trees'));
+});
