@@ -406,3 +406,60 @@ test('suggestions do not offer trees to a condo above the shade line, and do for
   const high = T.suggest(condo({ level: 6, trees: 0, acHours: 8, solarKwp: 8, walkShare: 1 }), 5).map((x) => x.key), low = T.suggest(condo({ level: 1, trees: 0, acHours: 8, solarKwp: 8, walkShare: 1 }), 5).map((x) => x.key);
   assert.ok(!high.includes('trees')); assert.ok(low.includes('trees'));
 });
+
+// ---- compare ----
+const cmpA = Object.assign({}, T.DEFAULTS, { lot: 1, trees: 4 });
+test('comparing a home with itself: every difference is zero, nothing is better, the labels agree', () => {
+  const c = T.compare(cmpA, cmpA);
+  assert.strictEqual(c.labelA, c.labelB);
+  for (const r of c.rows) { assert.strictEqual(r.diff, 0, r.key); assert.strictEqual(r.better, null, r.key); assert.strictEqual(r.a, r.b); }
+});
+test('compare covers the electricity, carbon, car, distance and comfort rows, then every pillar, then the total; nothing is broken', () => {
+  const c = T.compare(cmpA, Object.assign({}, cmpA, { lot: 5 }));
+  assert.deepStrictEqual(c.rows.map((r) => r.key), ['monthKwh', 'monthBill', 'carbonKg', 'carRm', 'stopKm', 'comfortPct', 'pillar:energy', 'pillar:resilience', 'pillar:community', 'pillar:biodiversity', 'total']);
+  for (const r of c.rows) { assert.ok(r.label && r.unit && Number.isFinite(r.a) && Number.isFinite(r.b) && Number.isFinite(r.diff), r.key); assert.strictEqual(c.row(r.key), r); }
+});
+test('a nearer lot wins on distance, car cost, carbon and the energy score, and leaves the electricity alone', () => {
+  const near = T.nearestOtherLot(1), c = T.compare(cmpA, Object.assign({}, cmpA, { lot: near }));
+  assert.ok(T.lotDistanceKm(near) < T.lotDistanceKm(1));
+  for (const k of ['stopKm', 'carRm', 'carbonKg', 'pillar:energy']) assert.strictEqual(c.row(k).better, 'b', k);
+  for (const k of ['monthKwh', 'monthBill']) assert.deepStrictEqual([c.row(k).diff, c.row(k).better], [0, null], k);
+});
+test('direction is right both ways: lower is better for use and distance, higher is better for scores and comfort', () => {
+  const near = T.nearestOtherLot(1), forward = T.compare(cmpA, Object.assign({}, cmpA, { lot: near })), back = T.compare(Object.assign({}, cmpA, { lot: near }), cmpA);
+  for (const r of forward.rows) {
+    const x = back.row(r.key); assert.strictEqual(x.diff, r.diff === 0 ? 0 : -r.diff, r.key + ' diff flips');
+    assert.strictEqual(x.better, r.better === 'a' ? 'b' : r.better === 'b' ? 'a' : null, r.key + ' winner flips');
+  }
+  assert.strictEqual(forward.row('total').better, forward.row('total').diff > 0 ? 'b' : forward.row('total').diff < 0 ? 'a' : null);
+});
+test('a condo against a terrace with the same habits: the smaller home uses less electricity and wins that row', () => {
+  const c = T.compare(Object.assign({}, cmpA, { house: 'terrace' }), Object.assign({}, cmpA, { house: 'condo', level: 4 }));
+  assert.ok(c.row('monthKwh').diff < 0 && c.row('monthKwh').better === 'b'); assert.ok(c.row('monthBill').better === 'b');
+});
+test('differences smaller than the shown precision count as a tie, never as a win', () => {
+  const c = T.compare(cmpA, Object.assign({}, cmpA, { baseScale: 1.0004 }));
+  assert.strictEqual(c.row('monthKwh').a, c.row('monthKwh').b); assert.strictEqual(c.row('monthKwh').better, null);
+  const d = T.compare(cmpA, Object.assign({}, cmpA, { lot: 2 })), km = d.row('stopKm'); assert.strictEqual(km.dec, 2); assert.ok(Math.abs(km.diff - (km.b - km.a)) < 1e-9);
+});
+test('the labels say the home type, the floor of a condo, and whether a lot is placed', () => {
+  assert.strictEqual(T.homeLabel({ house: 'terrace', lot: 5 }), 'Terrace house, lot 6'); assert.strictEqual(T.homeLabel({ house: 'condo', level: 8, lot: 0 }), 'Condominium, level 8, lot 1');
+  assert.strictEqual(T.homeLabel({ house: 'semid' }), 'Semi-D house, lot not placed'); assert.strictEqual(T.homeLabel({ house: 'condo', level: 99, lot: 99 }), 'Condominium, level 8, lot not placed');
+  assert.ok(!/level/.test(T.homeLabel({ house: 'terrace', level: 5, lot: 2 })));
+});
+test('the nearest other lot is the nearest by distance, never the one you are on', () => {
+  for (let ex = -1; ex < 12; ex++) {
+    const n = T.nearestOtherLot(ex); assert.ok(T.validLot(n) && n !== ex);
+    for (let i = 0; i < 12; i++) if (i !== ex) assert.ok(T.lotDistanceKm(n) <= T.lotDistanceKm(i) + 1e-12, `ex ${ex}: lot ${i} is nearer than ${n}`);
+  }
+  assert.strictEqual(T.nearestOtherLot(undefined), T.nearestOtherLot(-1));
+});
+test('grades travel with the rows: the distance is real with no lot and illustrative with one; the scores are placeholders', () => {
+  const none = T.compare(T.DEFAULTS, Object.assign({}, T.DEFAULTS, { lot: 4 })).row('stopKm');
+  assert.deepStrictEqual([none.gradeA, none.gradeB], ['REAL', 'ILLUSTRATIVE']);
+  for (const r of T.compare(cmpA, cmpA).rows.filter((x) => x.key.startsWith('pillar') || x.key === 'total')) assert.deepStrictEqual([r.gradeA, r.gradeB], ['ILLUSTRATIVE', 'ILLUSTRATIVE']);
+});
+test('a home matched to a bill is graded REAL on electricity only on the side that still matches', () => {
+  const c0 = T.calibrate(T.DEFAULTS, 700), billed = Object.assign({}, T.DEFAULTS, { baseScale: c0.baseScale, billKwh: 700 }), other = Object.assign({}, billed, { house: 'condo' });
+  const r = T.compare(billed, other).row('monthKwh'); assert.deepStrictEqual([r.gradeA, r.gradeB], ['REAL', 'ILLUSTRATIVE']);
+});

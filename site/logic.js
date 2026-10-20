@@ -221,6 +221,37 @@
     return rects;
   }
 
+
+  // ---- compare two homes: your home against an alternative, with the same habits, so the table isolates "which home or lot?" ----
+  const homeLabel = (i) => (HOUSES[i.house] || HOUSES.terrace).label
+    + (i.house === 'condo' ? ', level ' + clamp(Math.round(Number(i.level) || 1), 1, CONDO_LEVELS) : '')
+    + (validLot(i.lot) ? ', lot ' + (i.lot + 1) : ', lot not placed');
+  const COMPARE_ROWS = [
+    { key: 'monthKwh', label: 'Electricity per month', unit: 'kWh', dec: 0, dir: 'lower' },
+    { key: 'monthBill', label: 'Electricity bill', unit: 'RM', dec: 0, dir: 'lower' },
+    { key: 'carbonKg', label: 'Carbon, home and short trips', unit: 'kg', dec: 0, dir: 'lower' },
+    { key: 'carRm', label: 'Car cost, short trips', unit: 'RM', dec: 0, dir: 'lower' },
+    { key: 'stopKm', label: 'Distance to the bus stop', unit: 'km', dec: 2, dir: 'lower' },
+    { key: 'comfortPct', label: 'Nights kept comfortable', unit: '%', dec: 0, dir: 'higher' },
+  ];
+  function compare(a, b) {
+    const A = scores(a), B = scores(b), round = (v, d) => Math.round(v * Math.pow(10, d)) / Math.pow(10, d), rows = [];
+    const row = (key, label, unit, dec, dir, av, bv, ga, gb) => {
+      const x = round(av, dec), y = round(bv, dec), diff = round(y - x, dec);
+      rows.push({ key: key, label: label, unit: unit, dec: dec, a: x, b: y, diff: diff, better: diff === 0 ? null : (dir === 'lower' ? (y < x ? 'b' : 'a') : (y > x ? 'b' : 'a')), gradeA: ga, gradeB: gb });
+    };
+    COMPARE_ROWS.forEach((r) => row(r.key, r.label, r.unit, r.dec, r.dir, A.you.figures[r.key].value, B.you.figures[r.key].value, A.you.figures[r.key].grade, B.you.figures[r.key].grade));
+    A.pillars.forEach((p, i) => row('pillar:' + p.key, p.name + ' score', 'pts', 0, 'higher', p.score, B.pillars[i].score, GRADE.ILLUSTRATIVE, GRADE.ILLUSTRATIVE));
+    row('total', 'Home score', 'pts', 0, 'higher', A.total, B.total, GRADE.ILLUSTRATIVE, GRADE.ILLUSTRATIVE);
+    return { labelA: homeLabel(a), labelB: homeLabel(b), rows: rows, row: (k) => rows.find((r) => r.key === k) };
+  }
+  // the lot nearest the bus stop other than the one given: a useful first alternative to look at
+  function nearestOtherLot(exclude) {
+    let best = -1;
+    LOTS.forEach((_, i) => { if (i !== exclude && (best < 0 || lotDistanceKm(i) < lotDistanceKm(best))) best = i; });
+    return best;
+  }
+
   // ---- what the inspect panel shows when something in the scene is clicked. Pure, so it can be tested. ----
   function inspectInfo(kind, input, clk, extra) {
     clk = clk || { day: 1, hour: 12 }; extra = extra || {};
@@ -317,7 +348,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { homeLabel, compare, nearestOtherLot, COMPARE_ROWS, CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);

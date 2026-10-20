@@ -5,12 +5,12 @@
   var $ = function (id) { return document.getElementById(id); };
   var fmt = {
     'RM': function (v) { return 'RM ' + v.toFixed(0); }, 'kWh': function (v) { return v.toFixed(0) + ' kWh'; },
-    'kg CO2': function (v) { return v.toFixed(0) + ' kg'; }, 'min': function (v) { return v.toFixed(0) + ' min'; },
+    'kg CO2': function (v) { return v.toFixed(0) + ' kg'; }, 'kg': function (v) { return v.toFixed(0) + ' kg'; }, 'min': function (v) { return v.toFixed(0) + ' min'; },
     '%': function (v) { return v.toFixed(0) + '%'; }, 'km': function (v) { return v.toFixed(2) + ' km'; },
-    'trees': function (v) { return v.toFixed(0); }, 'trips': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
+    'trees': function (v) { return v.toFixed(0); }, 'trips': function (v) { return v.toFixed(0); }, 'pts': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
   };
   // ---- sign-in, the saved home and the set-up dialog ----
-  var P = window.TerrariumProfile, session = null, store = null, firstRun = false;
+  var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
   var SHOT = /[?&]shot\b/.test(location.search);
   var DEFAULT_STATE = function () { return Object.assign({}, T.DEFAULTS, { walkShare: 0.2 }); };
@@ -53,6 +53,35 @@
     $('flCheck').className = 'chk' + (r.withheld ? ' bad' : '');
     $('firstLook').hidden = false; $('flPlay').focus();
   }
+  // ---- compare: your home (A) against an alternative (B) with the same habits ----
+  function openCompare() {
+    if (g) return;
+    alt = Object.assign({}, st, { lot: T.nearestOtherLot(T.validLot(st.lot) ? st.lot : -1) });
+    $('cmpHouse').innerHTML = Object.keys(T.HOUSES).map(function (k) { return '<option value="' + k + '">' + T.HOUSES[k].label + '</option>'; }).join('');
+    $('cmpLot').innerHTML = T.LOTS.map(function (_, i) { var l = T.lotInfo(i); return '<option value="' + i + '">Lot ' + l.n + ', ' + l.km.toFixed(2) + ' km from the stop</option>'; }).join('');
+    $('compare').hidden = false; renderCompare(); $('cmpHouse').focus();
+  }
+  function closeCompare() { $('compare').hidden = true; }
+  function renderCompare() {
+    var a = Object.assign({}, st), c = T.compare(a, alt);
+    $('cmpHouse').value = alt.house; $('cmpLot').value = String(alt.lot); $('cmpLevelRow').hidden = alt.house !== 'condo';
+    $('cmpLevel').value = alt.level; $('cmpLevelV').textContent = 'level ' + alt.level + ' of ' + T.CONDO_LEVELS;
+    var fmtv = function (r, v) { return fmt[r.unit](v); };
+    $('cmpTable').innerHTML = '<table class="cmp"><thead><tr><th scope="col">Figure</th><th scope="col">A: ' + esc(c.labelA) + '</th><th scope="col">B: ' + esc(c.labelB) + '</th><th scope="col">B against A</th></tr></thead><tbody>' +
+      c.rows.map(function (r) {
+        var d = r.diff === 0 ? 'same' : (r.diff > 0 ? '+' : '\u2212') + fmtv(r, Math.abs(r.diff)), tick = '<span class="tick" aria-label="better">\u2713</span>';
+        return '<tr' + (r.key === 'total' ? ' class="sum"' : '') + '><th scope="row" style="font-weight:' + (r.key === 'total' ? 700 : 400) + '">' + esc(r.label) + '</th><td' + (r.better === 'a' ? ' class="win"' : '') + '>' + fmtv(r, r.a) + (r.better === 'a' ? tick : '') + '</td><td' + (r.better === 'b' ? ' class="win"' : '') + '>' + fmtv(r, r.b) + (r.better === 'b' ? tick : '') + '</td><td>' + d + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    var ans = window.TerrariumAI.ask('Compare the two homes', { input: a, alt: alt });
+    $('cmpSay').innerHTML = ans.text.map(function (t) { return '<p>' + esc(window.TerrariumAI.render(t)) + '</p>'; }).join('');
+    $('cmpCheck').textContent = ans.withheld ? 'This summary did not pass the check against the model, so it is not shown.' : 'Checked ' + ans.checked + ' figure' + (ans.checked === 1 ? '' : 's') + ' against the model before showing this.';
+    $('cmpCheck').className = 'chk' + (ans.withheld ? ' bad' : '');
+    var same = c.labelA === c.labelB; $('cmpApply').disabled = same; $('cmpApply').title = same ? 'Option B is the same as your home' : '';
+  }
+  function applyCompare() {
+    if (!alt || g) return; var c = T.compare(st, alt); if (c.labelA === c.labelB) return;
+    st.house = alt.house; st.level = alt.level; st.lot = alt.lot; closeCompare(); render();   // render saves the home
+  }
   function hideFirstLook() { $('firstLook').hidden = true; }
   function finishSetup() { saveProfile(true); closeWizard(); if (firstRun) { firstRun = false; showFirstLook(); } }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
@@ -81,16 +110,23 @@
   $('wizDone').addEventListener('click', finishSetup);
   $('myMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
   $('flExplore').addEventListener('click', hideFirstLook);
+  $('flCompare').addEventListener('click', function () { hideFirstLook(); openCompare(); });
+  $('compareBtn').addEventListener('click', openCompare);
+  $('cmpClose').addEventListener('click', closeCompare);
+  $('cmpApply').addEventListener('click', applyCompare);
+  $('cmpHouse').addEventListener('change', function (e) { alt.house = e.target.value; renderCompare(); });
+  $('cmpLevel').addEventListener('input', function (e) { alt.level = +e.target.value; renderCompare(); });
+  $('cmpLot').addEventListener('change', function (e) { alt.lot = +e.target.value; renderCompare(); });
   $('flPlay').addEventListener('click', function () { hideFirstLook(); if ($('gStart')) $('gStart').click(); });
   $('wizNext').addEventListener('click', function () { saveProfile(false); startPlacing(); });
   $('moveHouse').addEventListener('click', function () { startPlacing(); });
   $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
   $('lotConfirm').addEventListener('click', confirmLot);
   $('lotCancel').addEventListener('click', cancelLot);
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
   $('signOut').addEventListener('click', function () {
-    store.signOut(); stopPlacing(); hideFirstLook(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
+    store.signOut(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
     closeWizard(); showChip(); render(); showGate();
   });
@@ -164,7 +200,7 @@
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
     chart(s.you.days); gameView(input, s);
-    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = !!g;
+    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = $('compareBtn').disabled = !!g;
     if (!scene) onClock(clockDay, 12);
   }
   function chart(days) {
@@ -294,8 +330,9 @@
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.has('firstlook')) showFirstLook();
+  if (SHOT && q0.has('compare')) openCompare();
   if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }
-  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), inspect: vis('inspect'), skip: vis('skip') }); }
+  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
