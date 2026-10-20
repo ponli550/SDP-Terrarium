@@ -9,6 +9,7 @@
     hooks = hooks || {};
     var renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: !!hooks.preserve });
     renderer.setPixelRatio(hooks.preserve ? 1 : Math.min(root.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -27,9 +28,9 @@
     controls.enableDamping = true; controls.dampingFactor = reduce ? 1 : 0.045; controls.rotateSpeed = 0.7; controls.enableZoom = false;
     controls.maxPolarAngle = 1.38; controls.minDistance = 35; controls.maxDistance = 240;
 
-    var hemi = new THREE.HemisphereLight(0xdff3ff, 0x6a8a55, 0.65); scene.add(hemi);
-    var sun = new THREE.DirectionalLight(0xffffff, 0.9);
-    sun.castShadow = true; sun.shadow.mapSize.set(hooks.preserve ? 1024 : 2048, hooks.preserve ? 1024 : 2048);
+    var hemi = new THREE.HemisphereLight(0xcfe6ff, 0x6f8f55, 0.65); scene.add(hemi);
+    var sun = new THREE.DirectionalLight(0xfff0d6, 0.9);
+    sun.castShadow = true; sun.shadow.bias = -0.0005; sun.shadow.mapSize.set(hooks.preserve ? 1024 : 2048, hooks.preserve ? 1024 : 2048);
     var sc = sun.shadow.camera; sc.left = -110; sc.right = 110; sc.top = 110; sc.bottom = -110; sc.near = 10; sc.far = 400;
     scene.add(sun); scene.add(sun.target);
 
@@ -39,7 +40,7 @@
     function M(color) { if (!mats[color]) { mats[color] = new THREE.MeshLambertMaterial({ color: color }); sharedMats.add(mats[color]); } return mats[color]; }
     // A removed object still holds GPU buffers until it is disposed (measured: about 108 geometries leaked per home rebuild).
     function disposeTree(o) {
-      o.traverse(function (n) { if (n.geometry) n.geometry.dispose(); var m = n.material; if (m) (Array.isArray(m) ? m : [m]).forEach(function (x) { if (!sharedMats.has(x)) x.dispose(); }); });
+      o.traverse(function (n) { if (n.geometry && !sharedGeos.has(n.geometry)) n.geometry.dispose(); var m = n.material; if (m) (Array.isArray(m) ? m : [m]).forEach(function (x) { if (!sharedMats.has(x)) x.dispose(); }); });
     }
     function clearGroup(g) { while (g.children.length) { var c = g.children[0]; g.remove(c); disposeTree(c); } }
     function add(parent, geo, mat, x, y, z, shadow) {
@@ -48,13 +49,22 @@
       parent.add(m); return m;
     }
     var box = function (w, h, d) { return new THREE.BoxGeometry(w, h, d); };
+    var sharedGeos = new Set(), geoCache = {};   // geometry reused by many meshes (window parts, balconies): never disposed
+    var sbox = function (w, h, d) { var k = w + 'x' + h + 'x' + d; if (!geoCache[k]) { geoCache[k] = box(w, h, d); sharedGeos.add(geoCache[k]); } return geoCache[k]; };
     var winMat = new THREE.MeshLambertMaterial({ color: 0x9fd0e6, emissive: 0xffd98a, emissiveIntensity: 0 });
     var glowMat = new THREE.MeshBasicMaterial({ color: 0x8fe6ff, transparent: true, opacity: 0 });
     sharedMats.add(winMat); sharedMats.add(glowMat);
     function rnd(seed) { var s = seed; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 
     // ---------- ground, roads, corridor ----------
-    add(scene, new THREE.PlaneGeometry(520, 520), M(0x9cc97c), 0, -0.05, 0, false).rotation.x = -Math.PI / 2;
+    var grass = (function () {   // a tiling mottled-grass texture, drawn once from a fixed seed
+      var cv = document.createElement('canvas'); cv.width = cv.height = 256; var cx = cv.getContext('2d'), r = rnd(7);
+      cx.fillStyle = '#6aa93f'; cx.fillRect(0, 0, 256, 256);
+      var tones = ['#5f9d36', '#7bb84a', '#559230', '#86c352', '#6aa93f'];
+      for (var k = 0; k < 900; k++) { cx.globalAlpha = 0.22 + r() * 0.3; cx.fillStyle = tones[Math.floor(r() * tones.length)]; var rr = 3 + r() * 11, gx = r() * 256, gy = r() * 256; [[0, 0], [256, 0], [0, 256], [256, 256], [-256, 0], [0, -256]].forEach(function (o) { cx.beginPath(); cx.arc(gx + o[0], gy + o[1], rr, 0, 6.2832); cx.fill(); }); }
+      var tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(26, 26); tx.anisotropy = 4; return tx;
+    })();
+    add(scene, new THREE.PlaneGeometry(520, 520), new THREE.MeshLambertMaterial({ map: grass }), 0, -0.05, 0, false).rotation.x = -Math.PI / 2;
     function road(x, z, w, d) { add(scene, box(w, 0.12, d), M(0x4a5560), x, 0.02, z, false).receiveShadow = true; }
     road(0, 16, 230, 9);            // main road
     road(52, -18, 9, 76);           // road past the bus stop
@@ -101,12 +111,14 @@
       if (withMarks) {
         for (var f = 0; f < nF; f++) {
           var fg = new THREE.Group(), fh = bounds[f + 1] - bounds[f], fgeo = box(w, fh, d), fmat = new THREE.MeshLambertMaterial({ color: color });
-          add(fg, fgeo, fmat, 0, (bounds[f] + bounds[f + 1]) / 2, 0);
+          fg.userData.body = add(fg, fgeo, fmat, 0, (bounds[f] + bounds[f + 1]) / 2, 0);
           var edges = new THREE.LineSegments(new THREE.EdgesGeometry(fgeo), new THREE.LineBasicMaterial({ color: 0x37474f })); edges.position.set(0, (bounds[f] + bounds[f + 1]) / 2, 0); edges.visible = false; fg.add(edges);
+          if (type === 'condo' && f > 0) add(fg, sbox(w - 0.8, 0.32, 1.7), M(0xece7da), 0, bounds[f] + 0.16, d / 2 + 0.85);   // balcony slab
           fg.userData.mat = fmat; fg.userData.edges = edges; g.add(fg); floorG.push(fg);
         }
         roofG = new THREE.Group(); g.add(roofG);
       } else add(g, box(w, h, d), M(color), 0, h / 2, 0);
+      add(g, sbox(w + 0.6, 0.5, d + 0.6), M(0x8d9087), 0, 0.25, 0, false);                    // plinth
       var onFloor = function (y) { if (!withMarks) return g; for (var i = 0; i < nF; i++) if (y < bounds[i + 1]) return floorG[i]; return floorG[nF - 1]; };
       add(roofG, box(w + 1.2, 0.7, d + 1.2), M(0x8d6e63), 0, h + 0.35, 0);               // roof slab
       add(roofG, box(w + 1.2, 0.6, 0.4), M(0xd7ccc8), 0, h + 1.0, d / 2 + 0.4);           // parapet
@@ -114,7 +126,10 @@
       for (var r = 0; r < rows; r++) for (var cc = 0; cc < cols; cc++) {
         var wx = -w / 2 + (cc + 0.5) * (w / cols), wy = type === 'condo' ? 3 + r * 3.4 : (r === 0 ? 2.2 : 4.9);
         if (r === 0 && type !== 'condo' && cc === 0) continue;                         // leave room for the door
-        add(onFloor(wy), box(1.7, 1.5, 0.15), winMat, wx, wy, d / 2 + 0.08, false);
+        var wf = onFloor(wy);
+        add(wf, sbox(1.95, 1.75, 0.1), M(0xf4f1e8), wx, wy, d / 2 + 0.03, false);                 // frame
+        add(wf, sbox(1.7, 1.5, 0.15), winMat, wx, wy, d / 2 + 0.08, false);                       // glass
+        add(wf, sbox(2.15, 0.16, 0.4), M(0xe6e1d3), wx, wy - 0.88, d / 2 + 0.17, false);          // sill
       }
       if (type !== 'condo') add(onFloor(1.6), box(1.7, 3.2, 0.2), M(0x5d4037), -w / 2 + w / (cols * 2), 1.6, d / 2 + 0.1);
       else add(onFloor(1.5), box(3, 3, 0.2), M(0x5d4037), 0, 1.5, d / 2 + 0.1);
@@ -361,15 +376,17 @@
       var lift = u.floors.length * u.gap * explode;
       u.floors.forEach(function (fg, i) {
         fg.position.y = i * u.gap * explode; fg.userData.edges.visible = explode > 0.02;
-        var mine1 = i === u.unitFloor; fg.userData.mat.emissive.setHex(mine1 ? 0x2e7d32 : 0x000000).multiplyScalar(mine1 ? 0.55 * explode : 0);
+        var mine1 = i === u.unitFloor; fg.userData.mat.emissive.setHex(mine1 ? 0x2e7d32 : 0x000000).multiplyScalar(mine1 ? 1.1 * explode : 0);
       });
+      var shade = explode < 0.02;   // pulled-apart slabs would shade each other grey, so they stop casting while exploded
+      if (u.shade !== shade) { u.shade = shade; u.floors.forEach(function (fg) { fg.userData.body.castShadow = shade; }); u.roofG.children.forEach(function (m) { m.castShadow = shade; }); }
       u.roofG.position.y = lift; panels.position.y = lift;
       if (unitLabel) { var show = explode > 0.6; unitLabel.hidden = !show; if (!show) unitLabel.el.style.display = 'none'; }
       pin.userData.lift = lift;
     }
     function viewState() {
       var u = mine && mine.userData;
-      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
+      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
