@@ -28,7 +28,7 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 2. **See your first look**: a checked summary of what a month in this home costs, with one next action.
 3. **Compare** another home type, floor or lot side by side.
 4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home).
-5. **Switch to Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
+5. **Switch to Studio** to see your home alone on a turntable, or **Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
 6. **Open Analysis** for the scores against a neighbour, the month chart, every figure with its grade, and **what to change** for the biggest cut.
 7. **After handover**, type the kWh from your real bill and the model matches itself to it.
 
@@ -51,7 +51,7 @@ open site/index.html            # or double-click it; needs a browser with WebGL
 # tests
 npm install
 npm test                        # model, assistant, profile and MCP tests, plus page checks in jsdom
-npm run test:browser            # real-Chrome checks (needs Google Chrome; set CHROME to its path)
+npm run test:browser            # real-Chrome checks, about 6 minutes (needs Google Chrome; set CHROME to its path)
 ```
 
 Without WebGL the page says so and the model, game and scores still work.
@@ -79,7 +79,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
-**Known gap:** the real-browser suite does not fully complete on every machine. A headless Chrome can hang or return un-run HTML when a normal Chrome is open; `tools/chrome_dump.cjs` works around the hang, but one comparison query still misbehaves on the machine it was developed on.
+**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (75 checks) passes on the machine it was developed on; it has not been run elsewhere.
 
 ## Pilot
 

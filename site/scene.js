@@ -26,7 +26,7 @@
     // lazy motion: drags keep gliding after release, zoom eases toward a goal, and clicking eases in on the thing. All of it is off under reduced motion.
     var reduce = !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
     controls.enableDamping = true; controls.dampingFactor = reduce ? 1 : 0.045; controls.rotateSpeed = 0.7; controls.enableZoom = false;
-    controls.maxPolarAngle = 1.38; controls.minDistance = 35; controls.maxDistance = 240;
+    controls.autoRotateSpeed = 0.8; controls.maxPolarAngle = 1.38; controls.minDistance = 35; controls.maxDistance = 240;
 
     var hemi = new THREE.HemisphereLight(0xcfe6ff, 0x6f8f55, 0.65); scene.add(hemi);
     var sun = new THREE.DirectionalLight(0xfff0d6, 0.9);
@@ -159,6 +159,11 @@
       lg.userData.name = L[0]; lg.userData.mid = top - L[1] / 2; earth.add(lg); earthLayers.push(lg); return top - L[1];
     }, 0);
     earth.visible = false; scene.add(earth);
+    // Studio's turntable: a dark disc with a light rim under your home
+    var turntable = new THREE.Group(), studioAz0 = null, camAz = function () { return Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z); };
+    add(turntable, new THREE.CylinderGeometry(22, 22, 1.2, 64), new THREE.MeshLambertMaterial({ color: 0x1b2432 }), 0, -0.6, 0);
+    add(turntable, new THREE.TorusGeometry(22, 0.35, 8, 64), new THREE.MeshBasicMaterial({ color: 0x4fc3f7 }), 0, 0.05, 0, false).rotation.x = Math.PI / 2;
+    turntable.visible = false; scene.add(turntable);
     var mine = null, mineKey = '', plotTrees = new THREE.Group(), panels = new THREE.Group(), ring = null;
     scene.add(plotTrees);
     var HOME_POS = { x: T.LOTS[0][0], z: T.LOTS[0][1] }, currentLot = 0, builtLot = -1, neigh = new THREE.Group(); scene.add(neigh);
@@ -178,7 +183,7 @@
       var lvl = input.house === 'condo' ? Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(input.level) || 1))) : 0;
       var key = [input.house, input.solarKwp, input.trees, native, lotIdx, lvl].join('|');
       if (key === mineKey) return; mineKey = key;
-      currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1]; earth.position.set(HOME_POS.x, 0, HOME_POS.z - 6);
+      currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1]; earth.position.set(HOME_POS.x, 0, HOME_POS.z - 6); turntable.position.set(HOME_POS.x, 0, HOME_POS.z);
       if (builtLot !== lotIdx) { buildNeighbours(lotIdx); builtLot = lotIdx; }
       if (mine) { homes.remove(mine); disposeTree(mine); }
       if (ring) { scene.remove(ring); disposeTree(ring); }
@@ -199,7 +204,7 @@
       }
       panels.position.set(HOME_POS.x, 0, HOME_POS.z); if (!panels.parent) scene.add(panels);
       clearGroup(plotTrees);
-      if (viewMode === 'exploded') focusExploded();
+      if (viewMode === 'exploded') focusExploded(); else if (viewMode === 'studio') focusStudio();
       for (var t = 0; t < input.trees; t++) {
         var pos = T.PLOT_SLOTS[t % T.PLOT_SLOTS.length], x = HOME_POS.x + pos[0], z = HOME_POS.z + pos[1];
         if (t < native) nativeTree(plotTrees, x, z, 1.15, 900 + t); else ornamentalTree(plotTrees, x, z, 1.05);
@@ -359,7 +364,7 @@
     label('Bus, scheduled (illustrative)', busObj.obj, 7, 'dim');
     var v = new THREE.Vector3();
     function setPlacing(on) {
-      if (on && viewMode === 'exploded') setViewMode('lab');
+      if (on && viewMode !== 'lab') setViewMode('lab');
       placing = !!on; hoverLot = -1;
       pads.forEach(function (p) { p.visible = placing; });
       if (placing && !padLabels.length) T.LOTS.forEach(function (p, i) { label('Lot ' + (i + 1), anchor(p[0], 1, p[1] + 1), 0, 'lotlabel'); padLabels.push(labels[labels.length - 1]); });
@@ -370,35 +375,44 @@
     earthLayers.forEach(function (lg) { var a = new THREE.Object3D(); a.position.set(EARTH_W / 2 + 0.5, lg.userData.mid, EARTH_D / 2 - 4); lg.add(a); label(lg.userData.name, a, 0, 'dim'); var l = labels[labels.length - 1]; l.hidden = true; l.el.style.display = 'none'; groundLabels.push(l); });
     (function () { var a = new THREE.Object3D(); a.position.set(0, earthLayers[3].userData.mid - 4, EARTH_D / 2 + 1); earthLayers[3].add(a); label('Ground and water are drawn, not modelled', a, 0, 'dim'); var l = labels[labels.length - 1]; l.hidden = true; l.el.style.display = 'none'; groundLabels.push(l); })();
     // while exploded the rest of the township is put away (its ground would hide the cutaway); what comes back is exactly what was hidden
-    function keepInExplode(c) { return c.isLight || c === homes || c === plotTrees || c === panels || c === ring || c === pin || c === earth || c === outline || c === sun.target; }
+    var pinLabel = labels.filter(function (l) { return l.obj === pin; })[0];
+    function keepInExplode(c) { return c.isLight || c === homes || c === plotTrees || c === panels || c === outline || c === sun.target || c === earth || c === turntable || (viewMode === 'exploded' && (c === ring || c === pin)); }
+    function reconcileHidden() { hiddenByExplode = hiddenByExplode.filter(function (c) { if (keepInExplode(c)) { c.visible = true; return false; } return true; }); }
     function setWorldHidden(on) {
       worldHidden = on;
       if (on) { labels.forEach(function (l) { if (!l.hidden && l.obj !== pin && groundLabels.indexOf(l) < 0) { l.hidden = true; l.exHidden = true; l.el.style.display = 'none'; } }); }
       else { hiddenByExplode.forEach(function (c) { c.visible = true; }); hiddenByExplode = []; labels.forEach(function (l) { if (l.exHidden) { l.exHidden = false; l.hidden = false; } }); groundLabels.forEach(function (l) { l.hidden = true; l.el.style.display = 'none'; }); }
-      earth.visible = on; scene.fog.near = on ? 600 : 170; scene.fog.far = on ? 1400 : 420;
+      scene.fog.near = on ? 600 : 170; scene.fog.far = on ? 1400 : 420;
     }
     function focusExploded() {
       var u = mine && mine.userData; if (!u || !u.floors) return;
       var up = u.roof.y + 1 + u.floors.length * u.gap, down = 19 + (earthLayers.length - 1) * EARTH_GAP, span = up + down;
       flyGoal = { target: new THREE.Vector3(HOME_POS.x, (up - down) / 2, HOME_POS.z - 3) }; zoomGoal = Math.max(70, span * 1.7 + 20);
     }
+    function focusStudio() {
+      var u = mine && mine.userData; if (!u || !u.roof) return;
+      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (u.roof.y + 1) / 2, HOME_POS.z) }; zoomGoal = Math.max(55, (u.roof.y + 1) * 1.6 + 40);
+    }
     function setViewMode(m) {
-      m = m === 'exploded' ? 'exploded' : 'lab'; if (m === viewMode) return;
-      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0;
-      if (m === 'exploded') { if (placing) setPlacing(false); select(null); following = false; focusExploded(); }
+      m = m === 'exploded' || m === 'studio' ? m : 'lab'; if (m === viewMode) return;
+      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0; controls.autoRotate = m === 'studio' && !reduce;
+      if (m !== 'lab') { if (placing) setPlacing(false); select(null); following = false; if (worldHidden) reconcileHidden(); if (m === 'exploded') focusExploded(); else focusStudio(); }
       else { flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
       if (hooks.onViewMode) hooks.onViewMode(viewMode);
     }
     function applyExplode(dt) {
       var k = reduce ? 1 : 1 - Math.pow(0.9, Math.min(dt, 0.1) * 60);
       explode += (explodeGoal - explode) * k; if (Math.abs(explodeGoal - explode) < 0.002) explode = explodeGoal;
-      var want = viewMode === 'exploded' || explode > 0.02;
+      var want = viewMode !== 'lab' || explode > 0.02;
       if (want !== worldHidden) setWorldHidden(want);
       if (worldHidden) {
         scene.children.forEach(function (c) { if (c.visible && !keepInExplode(c)) { c.visible = false; hiddenByExplode.push(c); } });
         earthLayers.forEach(function (lg, i) { lg.position.y = -i * EARTH_GAP * explode; });
         var showG = explode > 0.6; groundLabels.forEach(function (l) { l.hidden = !showG; if (!showG) l.el.style.display = 'none'; });
       }
+      earth.visible = worldHidden && (viewMode === 'exploded' || explode > 0.02); turntable.visible = worldHidden && viewMode === 'studio';
+      if (pinLabel) { pinLabel.hidden = worldHidden && viewMode === 'studio'; if (pinLabel.hidden) pinLabel.el.style.display = 'none'; }
+      if (viewMode === 'studio') { if (studioAz0 === null) studioAz0 = camAz(); } else studioAz0 = null;
       var u = mine && mine.userData; if (!u || !u.floors) return;
       var lift = u.floors.length * u.gap * explode;
       u.floors.forEach(function (fg, i) {
@@ -413,7 +427,7 @@
     }
     function viewState() {
       var u = mine && mine.userData;
-      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
+      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, studio: { on: viewMode === 'studio', turntable: turntable.visible, rotating: controls.autoRotate, rotated: studioAz0 === null ? 0 : Math.round(Math.abs(camAz() - studioAz0) * 1000) / 1000, bg: scene.background.getHexString(), marker: pin.visible, markerLabel: !!pinLabel && !pinLabel.hidden }, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
@@ -447,7 +461,12 @@
     var perf = { frames: 0, jsMs: 0, labelsMs: 0 };   // measured, not guessed: JS time per frame and in the label pass
     var prevT = 0, frames = 0, lerp = function (a, b, t) { return a + (b - a) * t; };
     var pending = false;   // an animation frame has been requested and has not run yet
-    function schedule() { if (pending) return; pending = true; root.requestAnimationFrame(function (t) { pending = false; frame(t); }); }
+    // screenshot mode drives frames from a timer: headless Chrome stops delivering animation frames to a mostly static page (seen in Exploded and Studio), and a timer does not depend on it
+    function schedule() {
+      if (pending) return; pending = true;
+      if (hooks.maxFrames && !hooks.stopIdle) root.setTimeout(function () { pending = false; frame(performance.now()); }, 16);
+      else root.requestAnimationFrame(function (t) { pending = false; frame(t); });
+    }
     var active = true, looping = true;   // active is false while the Analysis page is showing: no drawing, no clock, and no frame requests at all
     // screenshot mode only: write what the checks need into the page once the frame budget is spent
     function shotDone() {
@@ -483,6 +502,7 @@
       sun.intensity = 0.15 + 0.85 * dayish; hemi.intensity = 0.25 + 0.5 * dayish;
       var sky = SKY_NIGHT.clone().lerp(wx.rain ? SKY_RAIN : wx.heat ? SKY_HEAT : SKY_DAY, dayish);
       scene.background.copy(sky); scene.fog.color.copy(sky);
+      if (viewMode === 'studio') { scene.background.setHex(0x0e1624); scene.fog.color.setHex(0x0e1624); sun.position.set(55, 85, 60); sun.intensity = 1.15; hemi.intensity = 0.55; winMat.emissiveIntensity = 0.8; }   // a fixed key light on a dark backdrop, windows lit
       var night = 1 - dayish; winMat.emissiveIntensity = lerp(winMat.emissiveIntensity, night > 0.45 ? 1 : 0, 0.1);
       // air-con glow on your home
       var ch = input ? T.choiceOnDay(input, clock.day) : { acHours: 0 }, acOn = input && T.acIsOn(hr, ch.acHours);
