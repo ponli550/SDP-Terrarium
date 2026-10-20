@@ -227,7 +227,7 @@
     $('skip').hidden = !anim;
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
-    chart(s.you.days); gameView(input, s);
+    chart(s.you.days); gameView(input, s); connectView();
     saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = $('compareBtn').disabled = $('anaCompare').disabled = $('anaMonth').disabled = !!g;
     $('anaHome').textContent = T.homeLabel(st);
     if (!scene) onClock(clockDay, 12);
@@ -301,6 +301,31 @@
   });
   $('billReset').addEventListener('click', function () { st.baseScale = 1; st.billKwh = null; $('billKwh').value = ''; $('billOut').innerHTML = ''; render(); });
 
+  // ---- connect an AI assistant: the home as a file, and the client's config from two paths ----
+  var M = window.TerrariumMcp;
+  function connectView() {
+    $('dlHome').href = 'data:application/json;charset=utf-8,' + encodeURIComponent(P.exportHome(P.pickHome(st)));
+    $('dlWhat').textContent = T.homeLabel(st);
+    var defaults = $('mcpDefaults').checked, out = $('mcpOut'); $('mcpHomeRow').hidden = defaults;
+    var o = { serverPath: $('mcpServer').value.trim(), homePath: $('mcpHome').value.trim(), defaults: defaults }, nodeP = $('mcpNode').value.trim(); if (nodeP) o.nodePath = nodeP;
+    out.textContent = ''; $('mcpCopy').hidden = true; $('mcpCopied').textContent = '';
+    var line = function (cls, t) { var p = document.createElement('p'); p.className = cls; p.textContent = t; out.appendChild(p); };
+    if (!o.serverPath || (!defaults && !o.homePath)) { line('note', defaults ? 'Paste the path to mcp/server.mjs to see the config.' : 'Download your home, then paste the two paths to see the config.'); return; }
+    var r = M.configFor($('mcpClient').value, o);
+    if (!r.ok) { line('chk bad', r.reason); return; }
+    var title = document.createElement('b'); title.textContent = r.title; out.appendChild(title);
+    line('note', r.where);
+    var pre = document.createElement('pre'); pre.className = 'cfg'; pre.id = 'mcpConfigText'; pre.textContent = r.text; out.appendChild(pre);
+    if (r.alt) { line('note', 'Or, as JSON (a .mcp.json in your project):'); var p2 = document.createElement('pre'); p2.className = 'cfg'; p2.textContent = r.alt; out.appendChild(p2); }
+    var ul = document.createElement('ul'); r.notes.forEach(function (n) { var li = document.createElement('li'); li.textContent = n; ul.appendChild(li); }); out.appendChild(ul);
+    $('mcpCopy').hidden = false; $('mcpCopy').dataset.text = r.text;
+  }
+  ['mcpClient', 'mcpDefaults', 'mcpServer', 'mcpHome', 'mcpNode'].forEach(function (id) { $(id).addEventListener(id === 'mcpClient' || id === 'mcpDefaults' ? 'change' : 'input', connectView); });
+  $('mcpCopy').addEventListener('click', function () {
+    var t = $('mcpCopy').dataset.text || '', done = function (ok) { $('mcpCopied').textContent = ok ? 'Copied' : 'Select the config and copy it yourself'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { done(true); }, function () { done(false); }); else done(false);
+  });
+
   // ---- the assistant: every answer is checked against the model before it is shown ----
   var AI = window.TerrariumAI;
   function showAnswer(r) {
@@ -363,6 +388,7 @@
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
   if (SHOT && q0.has('viewtimer')) setTimeout(function () { go('map'); }, +q0.get('viewtimer'));      // switch back by the clock, for the real stop-and-restart test
   if (SHOT && q0.has('dumpafter')) setTimeout(function () { if (scene) scene.shotNow(); }, +q0.get('dumpafter'));   // take the snapshot at a chosen moment
+  if (SHOT && q0.has('mcpserver')) { $('mcpServer').value = q0.get('mcpserver'); $('mcpHome').value = q0.get('mcphome') || ''; if (q0.get('mcpclient')) $('mcpClient').value = q0.get('mcpclient'); if (q0.get('mcpnode')) $('mcpNode').value = q0.get('mcpnode'); if (q0.get('mcpdefaults')) $('mcpDefaults').checked = true; connectView(); }
   if (SHOT && q0.has('firstlook')) showFirstLook();
   if (SHOT && q0.has('compare')) openCompare();
   if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }
@@ -374,7 +400,13 @@
     var rule = rules.filter(function (r) { return r.type === 7 && r.name === 'fade'; })[0], vis = document.querySelector('.view:not([hidden])');
     return { found: !!rule, transform: !!rule && /transform/.test(rule.cssText), name: vis ? getComputedStyle(vis).animationName : null };
   }
-  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
+  // how far any card on the Analysis page sticks out past its own column (0 when everything fits)
+  function columnOverflow() {
+    var worst = 0; [].forEach.call(document.querySelectorAll('#viewAnalysis .layout > .col'), function (col) {
+      var right = col.getBoundingClientRect().right; [].forEach.call(col.children, function (c) { worst = Math.max(worst, c.getBoundingClientRect().right - right); });
+    }); return Math.round(worst * 10) / 10;
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }

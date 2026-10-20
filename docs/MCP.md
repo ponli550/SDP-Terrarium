@@ -19,6 +19,10 @@ Every answer comes from the same model, assistant and verifier the page uses, so
 
 **Read the grades.** A figure is REAL (public data), SOURCED (an assumption with a published source) or ILLUSTRATIVE (a placeholder). The township layout is a drawing, so lot distances are illustrative. The server tells the client this in its instructions, but a client that rewords the answer is not checked by anything.
 
+## Or set it up from the page
+
+The **Analysis** page has a *Connect an AI assistant* card. Download your home (`terrarium-home.json`: the home only, never your email), pick your assistant (WorkBuddy, Claude Code, Claude Desktop or any other), paste the absolute path to `mcp/server.mjs` and to the downloaded file, and the card shows the exact config for that client, where it goes, and a Copy button. It is the same generator as `mcp/print-config.mjs`, so the two always agree. Relative paths and `~` are refused with the reason, because most clients do not expand them. The card only generates text; nothing is written to your assistant's config for you, and nothing leaves the browser.
+
 ## Try it in WorkBuddy
 
 1. In this folder run `npm ci` once.
