@@ -11,7 +11,7 @@
   };
   // ---- two pages in one app: Map (the 3D township, the play dock, the chat) and Analysis (habits, scores, chart, figures, bill) ----
   // One document, so a guest's home and a game in progress survive moving between them. The address (#/map, #/analysis) keeps Back and bookmarks working.
-  var view = 'map', viewLaterAt = 0;
+  var view = 'map', viewLaterAt = 0, modeLaterAt = 0;
   function viewFromHash() { return location.hash === '#/analysis' ? 'analysis' : 'map'; }
   function setView(v) {
     view = v; $('viewMap').hidden = v !== 'map'; $('viewAnalysis').hidden = v !== 'analysis';
@@ -161,7 +161,7 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (viewLaterAt && f === viewLaterAt) go('map'); if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onViewMode: syncViewButtons, onShotDone: snapshotUi, stopIdle: /[?&]stopidle\b/.test(location.search), onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (modeLaterAt && f === modeLaterAt) scene.setViewMode('lab'); if (viewLaterAt && f === viewLaterAt) go('map'); if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onViewMode: syncViewButtons, onShotDone: snapshotUi, stopIdle: /[?&]stopidle\b/.test(location.search), onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
@@ -389,6 +389,7 @@
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
+  if (SHOT && q0.has('modelater')) modeLaterAt = +q0.get('modelater');   // go back to Lab at this frame
   if (SHOT && q0.has('viewtimer')) setTimeout(function () { go('map'); }, +q0.get('viewtimer'));      // switch back by the clock, for the real stop-and-restart test
   if (SHOT && q0.has('dumpafter')) setTimeout(function () { if (scene) scene.shotNow(); }, +q0.get('dumpafter'));   // take the snapshot at a chosen moment
   if (SHOT && q0.has('mcpserver')) { $('mcpServer').value = q0.get('mcpserver'); $('mcpHome').value = q0.get('mcphome') || ''; if (q0.get('mcpclient')) $('mcpClient').value = q0.get('mcpclient'); if (q0.get('mcpnode')) $('mcpNode').value = q0.get('mcpnode'); if (q0.get('mcpdefaults')) $('mcpDefaults').checked = true; connectView(); }

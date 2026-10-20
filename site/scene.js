@@ -148,7 +148,17 @@
     }
     var pin = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.5, 10), new THREE.MeshLambertMaterial({ color: 0xe53935, emissive: 0x7a1010 }));
     pin.rotation.x = Math.PI; scene.add(pin);
-    var viewMode = 'lab', explode = 0, explodeGoal = 0, unitLabel = null;
+    var viewMode = 'lab', explode = 0, explodeGoal = 0, unitLabel = null, worldHidden = false, hiddenByExplode = [];
+    // the cutaway earth under your plot, shown only while exploded: four drawn layers (not modelled: the model has no soil or water)
+    var earth = new THREE.Group(), EARTH_W = 46, EARTH_D = 44, EARTH_GAP = 4, earthLayers = [], groundLabels = [];
+    [['Topsoil and roots', 3, 0x7a5a38, 0], ['Subsoil', 5, 0xa07b52, 0], ['Rock', 6, 0x7f8083, 0], ['Groundwater', 5, 0x3f9ad6, 0.78]].reduce(function (top, L) {
+      var lg = new THREE.Group(), geo = box(EARTH_W, L[1], EARTH_D), mat = new THREE.MeshLambertMaterial({ color: L[2], transparent: L[3] > 0, opacity: L[3] || 1 });
+      add(lg, geo, mat, 0, top - L[1] / 2, 0);
+      if (!earthLayers.length) add(lg, box(EARTH_W, 0.4, EARTH_D), new THREE.MeshLambertMaterial({ color: 0x6aa93f }), 0, -0.2, 0, false);   // the grass skin on top
+      var ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x37474f })); ed.position.y = top - L[1] / 2; lg.add(ed);
+      lg.userData.name = L[0]; lg.userData.mid = top - L[1] / 2; earth.add(lg); earthLayers.push(lg); return top - L[1];
+    }, 0);
+    earth.visible = false; scene.add(earth);
     var mine = null, mineKey = '', plotTrees = new THREE.Group(), panels = new THREE.Group(), ring = null;
     scene.add(plotTrees);
     var HOME_POS = { x: T.LOTS[0][0], z: T.LOTS[0][1] }, currentLot = 0, builtLot = -1, neigh = new THREE.Group(); scene.add(neigh);
@@ -168,7 +178,7 @@
       var lvl = input.house === 'condo' ? Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(input.level) || 1))) : 0;
       var key = [input.house, input.solarKwp, input.trees, native, lotIdx, lvl].join('|');
       if (key === mineKey) return; mineKey = key;
-      currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1];
+      currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1]; earth.position.set(HOME_POS.x, 0, HOME_POS.z - 6);
       if (builtLot !== lotIdx) { buildNeighbours(lotIdx); builtLot = lotIdx; }
       if (mine) { homes.remove(mine); disposeTree(mine); }
       if (ring) { scene.remove(ring); disposeTree(ring); }
@@ -357,14 +367,24 @@
       if (placing) { select(null); flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
     }
     // ---------- view modes: Lab (the township) and Exploded (your home's floors pulled apart) ----------
+    earthLayers.forEach(function (lg) { var a = new THREE.Object3D(); a.position.set(EARTH_W / 2 + 0.5, lg.userData.mid, EARTH_D / 2 - 4); lg.add(a); label(lg.userData.name, a, 0, 'dim'); var l = labels[labels.length - 1]; l.hidden = true; l.el.style.display = 'none'; groundLabels.push(l); });
+    (function () { var a = new THREE.Object3D(); a.position.set(0, earthLayers[3].userData.mid - 4, EARTH_D / 2 + 1); earthLayers[3].add(a); label('Ground and water are drawn, not modelled', a, 0, 'dim'); var l = labels[labels.length - 1]; l.hidden = true; l.el.style.display = 'none'; groundLabels.push(l); })();
+    // while exploded the rest of the township is put away (its ground would hide the cutaway); what comes back is exactly what was hidden
+    function keepInExplode(c) { return c.isLight || c === homes || c === plotTrees || c === panels || c === ring || c === pin || c === earth || c === outline || c === sun.target; }
+    function setWorldHidden(on) {
+      worldHidden = on;
+      if (on) { labels.forEach(function (l) { if (!l.hidden && l.obj !== pin && groundLabels.indexOf(l) < 0) { l.hidden = true; l.exHidden = true; l.el.style.display = 'none'; } }); }
+      else { hiddenByExplode.forEach(function (c) { c.visible = true; }); hiddenByExplode = []; labels.forEach(function (l) { if (l.exHidden) { l.exHidden = false; l.hidden = false; } }); groundLabels.forEach(function (l) { l.hidden = true; l.el.style.display = 'none'; }); }
+      earth.visible = on; scene.fog.near = on ? 600 : 170; scene.fog.far = on ? 1400 : 420;
+    }
     function focusExploded() {
       var u = mine && mine.userData; if (!u || !u.floors) return;
-      var total = u.roof.y + 1 + u.floors.length * u.gap;
-      flyGoal = { target: new THREE.Vector3(HOME_POS.x, total / 2, HOME_POS.z) }; zoomGoal = Math.max(55, total * 1.7 + 20);
+      var up = u.roof.y + 1 + u.floors.length * u.gap, down = 19 + (earthLayers.length - 1) * EARTH_GAP, span = up + down;
+      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (up - down) / 2, HOME_POS.z - 3) }; zoomGoal = Math.max(70, span * 1.7 + 20);
     }
     function setViewMode(m) {
       m = m === 'exploded' ? 'exploded' : 'lab'; if (m === viewMode) return;
-      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0; neigh.visible = m !== 'exploded';
+      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0;
       if (m === 'exploded') { if (placing) setPlacing(false); select(null); following = false; focusExploded(); }
       else { flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
       if (hooks.onViewMode) hooks.onViewMode(viewMode);
@@ -372,6 +392,13 @@
     function applyExplode(dt) {
       var k = reduce ? 1 : 1 - Math.pow(0.9, Math.min(dt, 0.1) * 60);
       explode += (explodeGoal - explode) * k; if (Math.abs(explodeGoal - explode) < 0.002) explode = explodeGoal;
+      var want = viewMode === 'exploded' || explode > 0.02;
+      if (want !== worldHidden) setWorldHidden(want);
+      if (worldHidden) {
+        scene.children.forEach(function (c) { if (c.visible && !keepInExplode(c)) { c.visible = false; hiddenByExplode.push(c); } });
+        earthLayers.forEach(function (lg, i) { lg.position.y = -i * EARTH_GAP * explode; });
+        var showG = explode > 0.6; groundLabels.forEach(function (l) { l.hidden = !showG; if (!showG) l.el.style.display = 'none'; });
+      }
       var u = mine && mine.userData; if (!u || !u.floors) return;
       var lift = u.floors.length * u.gap * explode;
       u.floors.forEach(function (fg, i) {
@@ -386,7 +413,7 @@
     }
     function viewState() {
       var u = mine && mine.userData;
-      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
+      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
@@ -461,7 +488,7 @@
       var ch = input ? T.choiceOnDay(input, clock.day) : { acHours: 0 }, acOn = input && T.acIsOn(hr, ch.acHours);
       if (mine && mine.userData.glow) glowMat.opacity = lerp(glowMat.opacity, acOn ? 0.32 + 0.1 * Math.sin(now / 250) : 0, 0.12);
       // rain
-      rain.visible = !!wx.rain;
+      rain.visible = !!wx.rain && !worldHidden;
       if (wx.rain) { var pa = rain.geometry.attributes.position; for (var i = 0; i < N; i++) { var y = pa.array[i * 6 + 1] - dt * 60 * (sp / 2 + 0.5); if (y < 0) y += 70; pa.array[i * 6 + 1] = y; pa.array[i * 6 + 4] = y - 3; } pa.needsUpdate = true; }
       // movers
       for (var a = agents.length - 1; a >= 0; a--) { followPath(agents[a], dt * (0.6 + sp * 0.4)); if (agents[a].done) { scene.remove(agents[a].obj); disposeTree(agents[a].obj); agents.splice(a, 1); } }
