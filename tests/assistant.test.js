@@ -243,3 +243,39 @@ test('compare: deterministic, and it never changes either input', () => {
   const alt = Object.assign({}, cmpIn, { lot: 5 }), a0 = JSON.stringify(cmpIn), b0 = JSON.stringify(alt);
   assert.deepStrictEqual(cmpAsk(alt), cmpAsk(alt)); assert.strictEqual(JSON.stringify(cmpIn), a0); assert.strictEqual(JSON.stringify(alt), b0);
 });
+
+// ---- what_if_many ----
+const manyAsk = (levers, input) => A.ask('x', { input: input || fresh().input }, (q, c) => A.answerQuestion(q, c, () => ({ intent: 'many', calls: [{ tool: 'what_if_many', args: { levers: levers } }] })));
+test('what_if_many: every combination of changes is answered and verified, with the model\'s own numbers', () => {
+  const keys = T.LEVERS.map((l) => l.key);
+  for (let m = 1; m < 1 << keys.length; m++) {
+    const set = keys.filter((_, i) => m & (1 << i)), c = fresh(), e = T.combinedEffect(c.input, set), r = manyAsk(set, c.input), t = words(r);
+    assert.ok(!r.withheld, set.join() + ' ' + (r.problems || []).join(';'));
+    assert.ok(t.includes(`from RM ${Math.round(e.runBefore)} to RM ${Math.round(e.runAfter)}`) && t.includes(`from ${Math.round(e.carbonBefore)} kg to ${Math.round(e.carbonAfter)} kg`) && t.includes(`from ${Math.round(e.scoreBefore)} to ${Math.round(e.scoreAfter)}`), set.join());
+    assert.strictEqual(/These changes overlap/.test(t), set.length > 1, 'the overlap sentence appears only for two or more changes: ' + set.join());
+    if (set.length > 1) assert.ok(t.includes(`would suggest ${Math.round(e.additiveCarbon)} kg and RM ${Math.round(e.additiveRm)} saved, but together they save ${Math.round(e.carbonSaved)} kg and RM ${Math.round(e.rmSaved)}`), set.join());
+  }
+});
+test('what_if_many: comfort is said to hold or to drop by the model\'s own number', () => {
+  const tight = { input: Object.assign({}, T.DEFAULTS, { acHours: 4, setpoint: 24 }) }, drop = T.combinedEffect(tight.input, ['setpoint']); assert.ok(drop.comfortDrop > 0, 'a home with no air-con slack loses comfort when the setpoint rises');
+  assert.ok(words(manyAsk(['setpoint'], tight.input)).includes(`comfort drops by ${Math.round(drop.comfortDrop)} points`)); assert.ok(words(manyAsk(['solarKwp'], tight.input)).includes('comfort holds or improves'));
+  assert.ok(words(manyAsk(['setpoint'], fresh().input)).includes('comfort holds or improves'), 'with slack to spare the same change costs no comfort');
+});
+test('what_if_many: a repeated, unknown, empty or wrongly typed change list is refused before it is answered', () => {
+  for (const bad of [[], ['acHours', 'acHours'], ['nonsense'], 'acHours', null, [1]]) { assert.ok(A.validCall({ tool: 'what_if_many', args: { levers: bad } }), JSON.stringify(bad)); const r = manyAsk(bad); assert.ok(/no way to answer/.test(words(r)) && r.claims.length === 0, JSON.stringify(bad)); }
+  assert.strictEqual(A.validCall({ tool: 'what_if_many', args: { levers: ['acHours', 'solarKwp'] } }), null); assert.ok(A.validCall({ tool: 'what_if_many', args: { levers: ['acHours'], extra: 1 } }));
+});
+test('verifier: a combined claim holds only for the model\'s own number, on a real field, for a real set of changes', () => {
+  const c = { input: Object.assign({}, T.DEFAULTS, { house: 'condo', level: 5, lot: 5, acHours: 8, setpoint: 25, trees: 3, nativeShare: 0.4, walkShare: 0.3 }) }, e = T.combinedEffect(c.input, ['solarKwp', 'acHours']);
+  assert.ok(Math.round(e.additiveCarbon) !== Math.round(e.carbonSaved), 'in this home the effects genuinely overlap');
+  const mk = (levers, field, v) => A.ask('x', c, () => base(['It is ' + f(0, String(Math.abs(v))) + '.'], [{ kind: 'combined', levers: levers, field: field, value: v }]));
+  assert.ok(!mk(['solarKwp', 'acHours'], 'carbonSaved', Math.round(e.carbonSaved)).withheld);
+  assert.ok(mk(['solarKwp', 'acHours'], 'carbonSaved', Math.round(e.additiveCarbon)).withheld, 'the added-up figure is not the combined one');
+  assert.ok(mk(['solarKwp', 'acHours'], 'runAfter', 33).withheld, 'the figure a client estimated by hand is refused');
+  assert.ok(mk(['solarKwp'], 'carbonSaved', Math.round(e.carbonSaved)).withheld, 'right number, wrong set of changes');
+  assert.ok(mk(['solarKwp', 'acHours'], 'magic', 1).withheld && mk(['acHours', 'acHours'], 'carbonSaved', 1).withheld && mk([], 'carbonSaved', 1).withheld);
+  assert.ok(!mk(['acHours', 'solarKwp'], 'carbonSaved', Math.round(e.carbonSaved)).withheld, 'the order of the changes does not matter');
+});
+test('what_if_many: deterministic, and it never changes the input it was given', () => {
+  const c = fresh(), before = JSON.stringify(c.input); assert.deepStrictEqual(manyAsk(['solarKwp', 'acHours'], c.input), manyAsk(['solarKwp', 'acHours'], c.input)); assert.strictEqual(JSON.stringify(c.input), before);
+});

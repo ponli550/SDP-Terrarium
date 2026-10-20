@@ -463,3 +463,36 @@ test('a home matched to a bill is graded REAL on electricity only on the side th
   const c0 = T.calibrate(T.DEFAULTS, 700), billed = Object.assign({}, T.DEFAULTS, { baseScale: c0.baseScale, billKwh: 700 }), other = Object.assign({}, billed, { house: 'condo' });
   const r = T.compare(billed, other).row('monthKwh'); assert.deepStrictEqual([r.gradeA, r.gradeB], ['REAL', 'ILLUSTRATIVE']);
 });
+
+// ---- several changes at once ----
+const KEYS = T.LEVERS.map((l) => l.key), HOMEM = Object.assign({}, T.DEFAULTS, { house: 'condo', level: 5, lot: 5, acHours: 8, setpoint: 25, trees: 3, nativeShare: 0.4, walkShare: 0.3 });
+test('a set of changes is valid only if it is a non-empty list of known changes, each once', () => {
+  for (const ok of [['acHours'], ['solarKwp', 'acHours'], KEYS]) assert.ok(T.validLeverSet(ok), ok.join());
+  for (const bad of [[], ['acHours', 'acHours'], ['nonsense'], ['acHours', 'nonsense'], KEYS.concat('acHours'), 'acHours', null, undefined, {}, [1], [null]]) assert.ok(!T.validLeverSet(bad), JSON.stringify(bad));
+});
+test('applying several changes does the same as applying them one after another, in any order, without touching the input', () => {
+  const before = JSON.stringify(HOMEM), seq = T.applyLever(T.applyLever(HOMEM, T.LEVERS.find((l) => l.key === 'acHours')), T.LEVERS.find((l) => l.key === 'solarKwp'));
+  assert.deepStrictEqual(T.applyLevers(HOMEM, ['solarKwp', 'acHours']), seq); assert.deepStrictEqual(T.applyLevers(HOMEM, ['acHours', 'solarKwp']), seq); assert.strictEqual(JSON.stringify(HOMEM), before);
+  assert.deepStrictEqual(T.applyLevers(HOMEM, []), HOMEM);
+});
+test('one change combined equals the single effect, exactly', () => {
+  for (const k of KEYS) { const c = T.combinedEffect(HOMEM, [k]), e = A_leverEffect(k); assert.ok(Math.abs(c.carbonSaved - e.carbonKg) < 1e-9 && Math.abs(c.rmSaved - e.rm) < 1e-9 && Math.abs(c.comfortDrop - e.comfortDrop) < 1e-9, k); assert.ok(Math.abs(c.additiveCarbon - c.carbonSaved) < 1e-9, 'with one change the sum is the effect'); }
+});
+function A_leverEffect(key) { const lv = T.LEVERS.find((l) => l.key === key), b = T.simulate(HOMEM).figures, f = T.simulate(T.applyLever(HOMEM, lv)).figures; return { carbonKg: b.carbonKg.value - f.carbonKg.value, rm: (b.monthBill.value + b.carRm.value) - (f.monthBill.value + f.carRm.value), comfortDrop: b.comfortPct.value - f.comfortPct.value }; }
+test('solar and less air-con overlap: together they save less than the sum, which is exactly the mistake adding them by hand makes', () => {
+  const c = T.combinedEffect(HOMEM, ['solarKwp', 'acHours']);
+  assert.ok(c.carbonSaved < c.additiveCarbon - 1 && c.rmSaved < c.additiveRm - 1, `${c.carbonSaved} vs ${c.additiveCarbon}`);
+  assert.deepStrictEqual([Math.round(c.runBefore), Math.round(c.runAfter), Math.round(c.carbonBefore), Math.round(c.carbonAfter)], [115, 48, 256, 136], 'the case a real client got wrong: it said about RM 33 and 123 kg');
+});
+test('the combined effect is the model run on the combined home, before and after, including the score', () => {
+  const c = T.combinedEffect(HOMEM, ['trees', 'walkShare', 'setpoint']), b = T.simulate(HOMEM).figures, a = T.simulate(T.applyLevers(HOMEM, ['trees', 'walkShare', 'setpoint'])).figures;
+  assert.ok(Math.abs(c.carbonBefore - b.carbonKg.value) < 1e-9 && Math.abs(c.carbonAfter - a.carbonKg.value) < 1e-9 && Math.abs(c.runAfter - (a.monthBill.value + a.carRm.value)) < 1e-9);
+  assert.ok(Math.abs(c.scoreBefore - T.scores(HOMEM).total) < 1e-9 && Math.abs(c.scoreAfter - T.scores(c.after).total) < 1e-9);
+});
+test('the changes come back in the model\'s own order whatever order they were given', () => {
+  assert.deepStrictEqual(T.combinedEffect(HOMEM, ['solarKwp', 'trees', 'acHours']).keys, KEYS.filter((k) => ['solarKwp', 'trees', 'acHours'].includes(k)));
+  assert.strictEqual(T.combinedEffect(HOMEM, ['nonsense']), null); assert.strictEqual(T.combinedEffect(HOMEM, []), null); assert.strictEqual(T.combinedEffect(HOMEM, ['acHours', 'acHours']), null);
+});
+test('making every change never saves less carbon than the best single change', () => {
+  const all = T.combinedEffect(HOMEM, KEYS), best = Math.max(...KEYS.map((k) => T.combinedEffect(HOMEM, [k]).carbonSaved)); assert.ok(all.carbonSaved >= best - 1e-9);
+});

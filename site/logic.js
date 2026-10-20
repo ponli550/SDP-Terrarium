@@ -336,6 +336,22 @@
     else bump(o);
     return o;
   }
+  // Several changes at once. They overlap (less air-con means less for solar to offset), so the effect is the model run with all of
+  // them applied, not the sum of the single effects. The order the caller gives never matters: they are applied in the model's own order.
+  function applyLevers(input, keys) {
+    const want = new Set(keys); let out = Object.assign({}, input);
+    LEVERS.forEach((lv) => { if (want.has(lv.key)) out = applyLever(out, lv); });
+    return out;
+  }
+  const validLeverSet = (keys) => Array.isArray(keys) && keys.length >= 1 && keys.length <= LEVERS.length && new Set(keys).size === keys.length && keys.every((k) => LEVERS.some((l) => l.key === k));
+  function combinedEffect(input, keys) {
+    if (!validLeverSet(keys)) return null;
+    const b = simulate(input).figures, A2 = applyLevers(input, keys), a = simulate(A2).figures, sb = scores(input).total, sa = scores(A2).total;
+    const run = (f) => f.monthBill.value + f.carRm.value, single = keys.map((k) => { const lv = LEVERS.find((l) => l.key === k), f = simulate(applyLever(input, lv)).figures; return { c: b.carbonKg.value - f.carbonKg.value, r: run(b) - run(f) }; });
+    return { keys: LEVERS.filter((l) => keys.indexOf(l.key) >= 0).map((l) => l.key), runBefore: run(b), runAfter: run(a), carbonBefore: b.carbonKg.value, carbonAfter: a.carbonKg.value,
+      carbonSaved: b.carbonKg.value - a.carbonKg.value, rmSaved: run(b) - run(a), comfortDrop: b.comfortPct.value - a.comfortPct.value, scoreBefore: sb, scoreAfter: sa,
+      additiveCarbon: single.reduce((x, y) => x + y.c, 0), additiveRm: single.reduce((x, y) => x + y.r, 0), after: A2 };
+  }
   // The biggest carbon saving among single changes that keep comfort within 5 points.
   function suggest(input, n) {
     const base = simulate(input).figures;
@@ -348,7 +364,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { homeLabel, compare, nearestOtherLot, COMPARE_ROWS, CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { validLeverSet, applyLevers, combinedEffect, homeLabel, compare, nearestOtherLot, COMPARE_ROWS, CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);

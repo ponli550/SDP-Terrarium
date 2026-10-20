@@ -24,6 +24,19 @@
   }
   var pickHome = function (st) { return sanitizeHome(st); };
 
+  // The file the app exports and a local MCP server reads. Strict on purpose: a wrong or oversized file is refused, never half-trusted.
+  var HOME_FORMAT = 'terrarium-home/1', HOME_MAX_BYTES = 65536;
+  function exportHome(home) { return JSON.stringify({ format: HOME_FORMAT, home: sanitizeHome(home) }, null, 2) + '\n'; }
+  function parseHomeFile(text) {
+    if (typeof text !== 'string') return { ok: false, reason: 'The home file could not be read.' };
+    if (text.length > HOME_MAX_BYTES) return { ok: false, reason: 'The home file is too large (over ' + HOME_MAX_BYTES + ' bytes).' };
+    var d; try { d = JSON.parse(text); } catch (e) { return { ok: false, reason: 'The home file is not valid JSON.' }; }
+    if (!d || typeof d !== 'object' || Array.isArray(d) || d.format !== HOME_FORMAT) return { ok: false, reason: 'This is not a Terrarium home file (expected format ' + HOME_FORMAT + ').' };
+    if (!d.home || typeof d.home !== 'object' || Array.isArray(d.home)) return { ok: false, reason: 'The home file has no home in it.' };
+    var clean = sanitizeHome(d.home), dropped = Object.keys(d.home).filter(function (k) { return !(k in clean); });
+    return { ok: true, home: clean, dropped: dropped };
+  }
+
   function memoryStorage() { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; }
 
   function createStore(storage) {
@@ -62,6 +75,6 @@
     };
   }
 
-  var API = { createStore: createStore, sanitizeHome: sanitizeHome, pickHome: pickHome, validEmail: validEmail, normaliseEmail: normaliseEmail, memoryStorage: memoryStorage, KEY: KEY };
+  var API = { exportHome: exportHome, parseHomeFile: parseHomeFile, HOME_FORMAT: HOME_FORMAT, HOME_MAX_BYTES: HOME_MAX_BYTES, createStore: createStore, sanitizeHome: sanitizeHome, pickHome: pickHome, validEmail: validEmail, normaliseEmail: normaliseEmail, memoryStorage: memoryStorage, KEY: KEY };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.TerrariumProfile = API;
 })(typeof window !== 'undefined' ? window : globalThis);
