@@ -109,8 +109,8 @@ test('tools: simulate_month reports every figure with its grade, the four pillar
   await c.close();
 });
 test('tools: list_lots lists every lot with the model\'s own distance and marks it illustrative', async () => {
-  const c = await connect(HOME), lines = (await call(c, 'list_lots')).text.split('\n');
-  assert.strictEqual(lines.length, T.LOTS.length);
+  const c = await connect(HOME), all = (await call(c, 'list_lots')).text.split('\n'), lines = all.slice(1);
+  assert.ok(all[0].startsWith('Lots carry no price in this model')); assert.strictEqual(lines.length, T.LOTS.length);
   lines.forEach((l, i) => { const li = T.lotInfo(i); assert.strictEqual(l, `Lot ${li.n}: ${li.km.toFixed(2)} km, about ${Math.round(li.walkMin)} min on foot [ILLUSTRATIVE]`); });
   await c.close();
 });
@@ -225,4 +225,53 @@ test('print-config: Claude Code gets the add command and the JSON alternative; -
 });
 test('print-config: an unknown client, no home and a bad argument all fail with exit code 2 and a usage line', () => {
   for (const args of [['vim', '--defaults'], ['workbuddy'], ['workbuddy', '--bogus'], []]) { const r = printCfg(args); assert.strictEqual(r.status, 2, JSON.stringify(args)); assert.ok(r.stdout === '' || /bogus/.test(r.stderr) || /clients:|usage:/.test(r.stderr), JSON.stringify(args)); }
+});
+
+// ---------- regressions from the first real WorkBuddy session: the figures were right, the wording around them was not ----------
+const sim = async (home, opts) => { const [ct, st] = InMemoryTransport.createLinkedPair(), server = buildServer(home, opts), client = new Client({ name: 't', version: '0' }); await server.connect(st); await client.connect(ct); const t = (await call(client, 'simulate_month')).text; return { client, text: t }; };
+const grab = (t, re) => { const m = t.match(re); return m ? m.slice(1).map(Number) : null; };
+test('regression: the direction of every comparative score is stated in numbers that agree with the score', async () => {
+  const homes = [HOME, {}, { acHours: 0 }, { acHours: 12, setpoint: 22, walkShare: 0, trees: 0 }, { house: 'semid', lot: 0, solarKwp: 6 }, { house: 'terrace', trees: 10, nativeShare: 1, walkShare: 0.9 }, { house: 'condo', level: 8, lot: 11, trees: 0 }, { solarKwp: 8, walkShare: 1, lot: 5 }, { walkShare: 0, lot: 6, trees: 1 }];
+  for (const h of homes) {
+    const { client, text } = await sim(h), s = T.scores(Object.assign({}, T.DEFAULTS, h)), score = (k) => Math.round(s.pillars.find((p) => p.key === k).score);
+    const [carbon, nCarbon] = grab(text, /Your carbon is (\d+) kg a month against (\d+) kg/), [trips, nTrips] = grab(text, /Your trips on foot are (\d+) a month against (\d+)/);
+    assert.ok(/above 50 is better than the neighbour, below 50 is worse/.test(text));
+    assert.strictEqual(carbon, Math.round(s.you.figures.carbonKg.value)); assert.strictEqual(nCarbon, Math.round(s.neighbour.figures.carbonKg.value));
+    if (carbon < nCarbon) assert.ok(score('energy') > 50, 'lower carbon than the neighbour must score above 50: ' + JSON.stringify(h)); if (carbon > nCarbon) assert.ok(score('energy') < 50, JSON.stringify(h));
+    if (trips > nTrips) assert.ok(score('community') > 50, JSON.stringify(h)); if (trips < nTrips) assert.ok(score('community') < 50, JSON.stringify(h));
+    await client.close();
+  }
+});
+test('regression: the modelled running cost is the sum of the two figures shown, and says what is not modelled', async () => {
+  for (const h of [HOME, {}, { acHours: 12, walkShare: 0 }, { house: 'semid', lot: 6 }]) {
+    const { client, text } = await sim(h), f = T.simulate(Object.assign({}, T.DEFAULTS, h)).figures, bill = Math.round(f.monthBill.value), car = Math.round(f.carRm.value);
+    assert.ok(text.includes(`Modelled running cost for this one simulated month: RM ${bill + car} (electricity RM ${bill} plus short car trips RM ${car}).`), JSON.stringify(h));
+    assert.ok(/Not modelled: rent or a mortgage, water, internet, food, insurance, maintenance, or any price of the home or lot\. Do not multiply one month into a yearly figure\./.test(text));
+    await client.close();
+  }
+});
+test('regression: the tools say there are no prices, and a farther lot is not described as cheaper', async () => {
+  const c = await connect(HOME);
+  assert.ok((await call(c, 'list_lots')).text.startsWith('Lots carry no price in this model'));
+  assert.ok(/no property prices or rent/.test((await call(c, 'compare_homes')).text));
+  const far = T.LOTS.map((_, i) => i).sort((x, y) => T.lotDistanceKm(y) - T.lotDistanceKm(x))[0], near = T.nearestOtherLot(far);
+  const r = T.compare(Object.assign({}, T.DEFAULTS, HOME, { lot: near }), Object.assign({}, T.DEFAULTS, HOME, { lot: far }));
+  assert.ok(r.row('carRm').diff >= 0 && r.row('carbonKg').diff >= 0 && r.row('stopKm').diff > 0, 'in the model a farther lot costs more to run, never less');
+  const t = (await call(c, 'compare_homes', { lot: far + 1 })).text; assert.ok(/farther/.test(t) && /more on short car trips/.test(t) && !/cheaper|less to run/.test(t));
+  await c.close();
+});
+test('regression: the instructions explain the scores, the missing prices, the one-month limit and which home is loaded', async () => {
+  const [ct, st] = InMemoryTransport.createLinkedPair(), server = buildServer(HOME, { source: 'the home file mine.json' }), client = new Client({ name: 't', version: '0' }); await server.connect(st); await client.connect(ct);
+  const ins = client.getInstructions();
+  for (const need of [/ABOVE 50 means better/, /NO prices for homes, lots or rent/, /farther lot costs MORE to run/, /ONE simulated month/, /Do not multiply them into a yearly cost/, /not rent, a mortgage, water, internet, food, insurance or maintenance/, /The loaded home is Condominium, level 5, lot 6, from the home file mine\.json/, /do not call it a default/]) assert.ok(need.test(ins), String(need));
+  await client.close();
+});
+test('regression: the home line says where the home came from, and a default home says so', async () => {
+  const a = await sim(HOME, { source: 'the home file mine.json' }), b = await sim({}); assert.ok(a.text.startsWith('Home: Condominium, level 5, lot 6 (the home file mine.json)') && b.text.startsWith('Home: Terrace house, lot not placed (a default demo home)')); await a.client.close(); await b.client.close();
+});
+test('regression: over a real stdio session the home line names the file, and never its folder', async () => {
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const c = new Client({ name: 'stdio', version: '0' }); await c.connect(new StdioClientTransport({ command: 'node', args: [SERVER, '--home', EXAMPLE] }));
+  const t = (await call(c, 'simulate_month')).text, ins = c.getInstructions();
+  assert.ok(t.startsWith('Home: Condominium, level 5, lot 6 (the home file home.json)') && ins.includes('from the home file home.json') && !t.includes(path.dirname(EXAMPLE)) && !ins.includes(path.dirname(EXAMPLE))); await c.close();
 });

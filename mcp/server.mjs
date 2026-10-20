@@ -36,6 +36,6 @@ if (homePath) {
   if (r.dropped.length) say('ignored unknown fields in the home file: ' + r.dropped.join(', ') + '.');
 }
 
-const server = buildServer(home);
+const server = buildServer(home, { source: homePath ? 'the home file ' + path.basename(homePath) : 'a default demo home' });
 await server.connect(new StdioServerTransport());
 say('ready (' + (homePath ? 'home file ' + path.basename(homePath) : 'default demo home') + ').');

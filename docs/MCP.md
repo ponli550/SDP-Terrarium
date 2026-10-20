@@ -62,6 +62,17 @@ node mcp/print-config.mjs workbuddy --defaults
 - **The server exits at start.** It exits with code 2 and writes the reason to stderr: no home given, an unreadable or oversized file, the wrong format, or an unknown argument. Run `node mcp/server.mjs --home <file>` in a terminal to see the message.
 - stdout carries only the protocol. Messages for a person go to stderr.
 
+## What the first real session showed
+
+WorkBuddy connected, called the tools and quoted the figures correctly. Every number it gave matched the model. Its own wording around the numbers was wrong in two places, which no checker can catch because the checker only covers the tool's text:
+
+- It read the Energy Low Carbon score backwards ("your carbon is above the neighbour benchmark") when the score was 67 because the home emits *less* than the neighbour household (256 kg against 344 kg).
+- It described a farther lot as "cheaper". The model has no prices; a farther lot costs more to run.
+
+It also multiplied one illustrative month by 12 into a yearly cost, and called the configured home a "default".
+
+What changed because of that: the tool output now states every score's direction in numbers ("your carbon is 256 kg against 344 kg for the neighbour household"), states the running cost for the month and what is not modelled, says there are no prices for homes or lots, and the server's instructions name the loaded home and warn against annualising. A client can still reword an answer badly. For anything that matters, read the tool's own text.
+
 ## What it does not do
 
 - It writes nothing, sends nothing and changes nothing. All seven tools are marked read-only.

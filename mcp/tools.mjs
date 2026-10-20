@@ -19,6 +19,9 @@ const INSTRUCTIONS = [
   'Every number is graded: REAL (public data), SOURCED (an assumption with a published source) or ILLUSTRATIVE (a placeholder). Only report REAL or SOURCED figures as facts; call ILLUSTRATIVE ones estimates or placeholders.',
   'Each tool returns text that has already been checked against the model ("Checked N figures"). Quote it rather than rewording the numbers.',
   'The township layout is a drawing: lot distances are scaled from one real figure and are illustrative. All tools are read-only.',
+  'Reading the scores: higher is better. Energy Low Carbon, Community Experience and Urban Biodiversity are measured against a fixed neighbour household, where 50 means the same as the neighbour and ABOVE 50 means better (lower carbon, more trips on foot, more native trees). Climate Resilience is the share of nights kept comfortable. The weakest pillar is only the lowest of the four, not necessarily a bad score.',
+  'This model has NO prices for homes, lots or rent. A lot changes only the walk to the bus stop, the car cost and the carbon, and a farther lot costs MORE to run, not less. Do not describe a lot as cheaper or dearer to buy.',
+  'The figures are for ONE simulated month. Do not multiply them into a yearly cost as if it were a fact: the weather changes through the year. Only electricity and short car trips are modelled, not rent, a mortgage, water, internet, food, insurance or maintenance.',
 ].join(' ');
 
 const text = (t) => ({ content: [{ type: 'text', text: t }] });
@@ -33,10 +36,12 @@ function viaAssistant(ctx, tool, args) {
 
 const fmtValue = (f) => (f.unit === 'RM' ? 'RM ' + f.value.toFixed(0) : f.unit === 'km' ? f.value.toFixed(2) + ' km' : f.unit === '%' ? f.value.toFixed(0) + '%' : f.value.toFixed(f.unit === 'index' ? 1 : 0) + ' ' + f.unit);
 
-export function buildServer(home) {
+export function buildServer(home, opts) {
+  const source = (opts && opts.source) || 'a default demo home';
   const base = Object.assign({}, T.DEFAULTS, home || {});
   const ctx = () => ({ input: Object.assign({}, base) });   // a fresh copy per call: tools never change the home
-  const server = new McpServer({ name: 'terrarium', version: pkg.version || '0.0.0' }, { instructions: INSTRUCTIONS });
+  const label = T.homeLabel(base);
+  const server = new McpServer({ name: 'terrarium', version: pkg.version || '0.0.0' }, { instructions: INSTRUCTIONS + ' The loaded home is ' + label + ', from ' + source + '. It is the home this server was set up with; do not call it a default or ask the user to pick one.' });
 
   server.registerTool('first_look', {
     title: 'First look: what a month in this home costs',
@@ -76,7 +81,7 @@ export function buildServer(home) {
     if (answer.isError) return answer;
     const c = T.compare(a, b), mark = (r, side) => (r.better === side ? ' *' : '');
     const rows = c.rows.map((r) => `${r.label}: A ${r.a} ${r.unit}${mark(r, 'a')} | B ${r.b} ${r.unit}${mark(r, 'b')} | B against A ${r.diff > 0 ? '+' : ''}${r.diff}`);
-    return text(answer.content[0].text + '\n\nA: ' + c.labelA + '\nB: ' + c.labelB + '\n' + rows.join('\n') + '\n(* marks the better side. Every figure is illustrative.)');
+    return text(answer.content[0].text + '\n\nA: ' + c.labelA + '\nB: ' + c.labelB + '\n' + rows.join('\n') + '\n(* marks the better side. Every figure is illustrative. This model has no property prices or rent: it compares running cost, distance, carbon and scores only.)');
   });
 
   server.registerTool('simulate_month', {
@@ -86,15 +91,21 @@ export function buildServer(home) {
   }, async () => {
     const s = T.scores(ctx().input), f = s.you.figures;
     const lines = Object.keys(f).map((k) => `${f[k].label}: ${fmtValue(f[k])} [${f[k].grade}]`);
-    const pil = s.pillars.map((p) => `${p.name}: ${Math.round(p.score)} (${p.formula})`);
-    return text(['Home: ' + T.homeLabel(ctx().input), '', ...lines, '', ...pil, '', 'Home score: ' + Math.round(s.total) + ' out of 100', 'The neighbour average is a fixed illustrative household. Scores are placeholders.'].join('\n'));
+    const pil = s.pillars.map((p) => `${p.name}: ${Math.round(p.score)} (${p.formula})`), n = s.neighbour.figures;
+    const bill = Math.round(f.monthBill.value), car = Math.round(f.carRm.value);
+    const read = ['How to read the scores: higher is better. 50 means the same as the neighbour household; above 50 is better than the neighbour, below 50 is worse. Climate Resilience is the share of nights kept comfortable.',
+      `Your carbon is ${Math.round(f.carbonKg.value)} kg a month against ${Math.round(n.carbonKg.value)} kg for the neighbour household.`,
+      `Your trips on foot are ${Math.round(f.walkedTrips.value)} a month against ${Math.round(n.walkedTrips.value)} for the neighbour household.`,
+      `Your native-weighted tree canopy is ${f.bioIndex.value.toFixed(1)} against ${n.bioIndex.value.toFixed(1)} for the neighbour household.`];
+    const cost = [`Modelled running cost for this one simulated month: RM ${bill + car} (electricity RM ${bill} plus short car trips RM ${car}).`, 'Not modelled: rent or a mortgage, water, internet, food, insurance, maintenance, or any price of the home or lot. Do not multiply one month into a yearly figure.'];
+    return text(['Home: ' + T.homeLabel(ctx().input) + ' (' + source + ')', '', ...lines, '', ...cost, '', ...pil, '', ...read, '', 'Home score: ' + Math.round(s.total) + ' out of 100', 'The neighbour household is fixed and illustrative. Scores are placeholders.'].join('\n'));
   });
 
   server.registerTool('list_lots', {
     title: 'The lots in the township',
-    description: 'The ' + T.LOTS.length + ' lots with their distance to the bus stop and the walk in minutes. The layout is a drawing scaled from one real figure, so every distance here is illustrative.',
+    description: 'The ' + T.LOTS.length + ' lots with their distance to the bus stop and the walk in minutes. The layout is a drawing scaled from one real figure, so every distance here is illustrative. Lots carry no price in this model.',
     annotations: READ_ONLY,
-  }, async () => text(T.LOTS.map((_, i) => { const l = T.lotInfo(i); return `Lot ${l.n}: ${l.km.toFixed(2)} km, about ${Math.round(l.walkMin)} min on foot [ILLUSTRATIVE]`; }).join('\n')));
+  }, async () => text('Lots carry no price in this model: a lot changes only the walk to the bus stop, the car cost and the carbon.\n' + T.LOTS.map((_, i) => { const l = T.lotInfo(i); return `Lot ${l.n}: ${l.km.toFixed(2)} km, about ${Math.round(l.walkMin)} min on foot [ILLUSTRATIVE]`; }).join('\n')));
 
   server.registerTool('where_from', {
     title: 'Where a number comes from, and how sure it is',
