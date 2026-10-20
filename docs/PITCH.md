@@ -60,7 +60,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (131 automated tests), the 3D township, the weekly game, 168 page checks and 44 checks in a real browser. Public data only; no SDP data.
+A working prototype in the browser: a tested model (187 automated tests), the 3D township, the weekly game, 199 page checks and 58 checks in a real browser. Public data only; no SDP data.
 
 **Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 

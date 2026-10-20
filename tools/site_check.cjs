@@ -16,6 +16,7 @@ const w = dom.window, $ = (id) => w.document.getElementById(id);
 const setRange = (id, v) => { const e = $(id); e.value = v; e.dispatchEvent(new w.Event('input', { bubbles: true })); };
 
 ok($('nowebgl'), 'without WebGL the page says so and keeps working');
+ok($('ask').hidden && $('chatToggle').getAttribute('aria-expanded') === 'false' && $('chatToggle').textContent === 'Ask about your month', 'on a fresh page the chat starts folded');
 ok($('hudFigs').textContent.includes('Electricity today') && $('hudClock').textContent.includes('Day'), 'the heads-up display renders');
 ok($('pillars').querySelectorAll('.score').length === 4, 'four pillar cards');
 ok([...$('pillars').querySelectorAll('.formula')].every((e) => e.textContent.length > 20), 'every pillar shows its formula');
@@ -254,4 +255,40 @@ ok(cmpCell('Distance to the bus stop', 1).textContent.startsWith('0.93 km') && $
 const realAsk3 = w.TerrariumAI.ask; w.TerrariumAI.ask = (q, c) => realAsk3(q, c, () => ({ intent: 'x', text: ['Option B saves 99% for sure.'], claims: [], cards: [], calls: [] })); pickB('cmpLot', '3');
 ok($('cmpCheck').textContent.includes('did not pass') && !$('cmpSay').textContent.includes('99%') && cmpRows().length === 11, 'if the checked summary fails it says so and shows none of its text, while the table, which is plain arithmetic, still shows'); w.TerrariumAI.ask = realAsk3;
 $('cmpClose').click(); $('signOut').click();
+// the two pages: Map and Analysis
+const shown = (id) => !$(id).hidden, inside = (id, ancestor) => !!$(id).closest(ancestor), T0 = w.__terrarium;
+const hashTo = (h) => { w.location.hash = h; w.dispatchEvent(new w.HashChangeEvent('hashchange')); };
+settle(); T0.go('map');
+ok(shown('viewMap') && !shown('viewAnalysis') && T0.view() === 'map', 'the Map is the first page');
+ok($('tabMap').getAttribute('aria-current') === 'page' && !$('tabAnalysis').hasAttribute('aria-current') && $('tabMap').getAttribute('href') === '#/map' && $('tabAnalysis').getAttribute('href') === '#/analysis', 'the navigation links to both pages and marks the current one');
+ok(inside('stage', '#viewMap') && inside('game', '#dock') && inside('ask', '#chat') && inside('inspect', '#stage') && inside('placeBar', '#stage') && inside('follow', '#stage'), 'the township, the play dock, the chat and the inspect panel are on the Map');
+ok(['choices', 'handover', 'pillars', 'chart', 'figs', 'house', 'billForm'].every((id) => inside(id, '#viewAnalysis')), 'habits, the bill, the scores, the chart and the figures are on the Analysis page');
+T0.go('analysis');
+ok(!shown('viewMap') && shown('viewAnalysis') && T0.view() === 'analysis' && w.location.hash === '#/analysis' && w.document.title === 'Terrarium \u00b7 Analysis', 'going to Analysis swaps the page, the address and the title');
+ok($('tabAnalysis').getAttribute('aria-current') === 'page' && !$('tabMap').hasAttribute('aria-current'), 'and the navigation follows');
+hashTo('#/map'); ok(shown('viewMap') && !shown('viewAnalysis'), 'the address bar can switch the page back (Back and bookmarks work)');
+hashTo('#/analysis'); ok(shown('viewAnalysis') && !shown('viewMap'), 'and forward again'); hashTo('#/nonsense'); ok(shown('viewMap') && !shown('viewAnalysis'), 'an address we do not know falls back to the Map');
+// the chat floats over the map
+T0.openChat(false); ok(!shown('ask') && $('chatToggle').getAttribute('aria-expanded') === 'false' && $('chatToggle').textContent === 'Ask about your month', 'folding the chat shows the button as Ask about your month');
+$('chatToggle').click(); ok(shown('ask') && $('chatToggle').getAttribute('aria-expanded') === 'true' && $('chatToggle').textContent === 'Close chat', 'the chat button opens it');
+$('chatToggle').click(); ok(!shown('ask') && $('chatToggle').getAttribute('aria-expanded') === 'false', 'and closes it');
+$('chatToggle').click(); w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok(!shown('ask'), 'Escape closes the chat');
+T0.go('analysis'); ask('Give me the briefing'); ok(T0.view() === 'map' && shown('ask') && /This month your home uses/.test($('askOut').textContent), 'asking from the Analysis page takes you to the Map and opens the chat on the answer');
+$('chatToggle').click();
+// the play dock
+ok(shown('dockBody') && $('dockToggle').getAttribute('aria-expanded') === 'true', 'the play dock starts open');
+$('dockToggle').click(); ok(!shown('dockBody') && $('dockToggle').getAttribute('aria-expanded') === 'false', 'the dock folds'); $('dockToggle').click(); ok(shown('dockBody'), 'and opens again');
+// actions that need the map take you there
+T0.go('analysis'); $('moveHouse').click(); ok(T0.view() === 'map' && !$('placeBar').hidden, 'Move house from the Analysis page opens the lot chooser on the Map'); $('lotCancel').click();
+T0.go('analysis'); $('myMonth').click(); ok(fl() && T0.view() === 'analysis', 'My month opens the first look on either page'); $('flExplore').click(); ok(!fl() && T0.view() === 'map', 'Explore the township takes you to the Map');
+T0.go('analysis'); if (shown('dockBody')) $('dockToggle').click(); ok(!shown('dockBody'), 'the dock is folded before playing from the first look'); $('myMonth').click(); $('flPlay').click(); ok(!fl() && T0.view() === 'map' && shown('dockBody') && $('gLock'), 'Play the month takes you to the Map and starts the game'); $('gQuit').click();
+T0.go('analysis'); $('editHome').click(); ok(!$('wizard').hidden && T0.view() === 'analysis', 'Edit home works on the Analysis page'); $('wizDone').click(); settle();
+$('compareBtn').click(); ok(!$('compare').hidden && T0.view() === 'analysis', 'Compare works on the Analysis page'); $('cmpClose').click();
+// the Analysis page's own bar
+ok(/^(Terrace house|Semi-D house|Condominium)(, level \d)?, lot (\d+|not placed)$/.test($('anaHome').textContent), 'the home bar names the home the way Compare does');
+$('anaMap').click(); ok(T0.view() === 'map', 'Show on the map goes to the Map'); T0.go('analysis');
+$('anaCompare').click(); ok(!$('compare').hidden, 'the bar\'s Compare opens the comparison'); $('cmpClose').click();
+$('anaMonth').click(); ok(fl(), 'the bar\'s My month opens the first look'); $('flExplore').click(); T0.go('analysis');
+$('gStart').click(); T0.go('analysis'); ok($('anaCompare').disabled && $('anaMonth').disabled, 'the bar\'s buttons are locked during a game'); $('gQuit').click(); ok(!$('anaCompare').disabled && !$('anaMonth').disabled, 'and unlocked after');
+T0.go('map');
 console.log('site checks passed:', n);

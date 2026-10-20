@@ -9,6 +9,26 @@
     '%': function (v) { return v.toFixed(0) + '%'; }, 'km': function (v) { return v.toFixed(2) + ' km'; },
     'trees': function (v) { return v.toFixed(0); }, 'trips': function (v) { return v.toFixed(0); }, 'pts': function (v) { return v.toFixed(0); }, 'index': function (v) { return v.toFixed(1); }
   };
+  // ---- two pages in one app: Map (the 3D township, the play dock, the chat) and Analysis (habits, scores, chart, figures, bill) ----
+  // One document, so a guest's home and a game in progress survive moving between them. The address (#/map, #/analysis) keeps Back and bookmarks working.
+  var view = 'map', viewLaterAt = 0;
+  function viewFromHash() { return location.hash === '#/analysis' ? 'analysis' : 'map'; }
+  function setView(v) {
+    view = v; $('viewMap').hidden = v !== 'map'; $('viewAnalysis').hidden = v !== 'analysis';
+    if (v === 'map') { $('tabMap').setAttribute('aria-current', 'page'); $('tabAnalysis').removeAttribute('aria-current'); } else { $('tabAnalysis').setAttribute('aria-current', 'page'); $('tabMap').removeAttribute('aria-current'); }
+    document.title = 'Terrarium \u00b7 ' + (v === 'map' ? 'Map' : 'Analysis');
+    if (scene) scene.setActive(v === 'map');   // nothing is drawn, and the clock does not run, while the Analysis page is showing
+    if (v === 'analysis') window.scrollTo(0, 0);
+  }
+  function go(v) { var h = v === 'analysis' ? '#/analysis' : '#/map'; if (location.hash !== h) location.hash = h; setView(v); }
+  window.addEventListener('hashchange', function () { setView(viewFromHash()); });
+  // the chat floats over the map; the play dock sits beside it. Both can be folded away.
+  function openChat(on) { $('ask').hidden = !on; $('chatToggle').setAttribute('aria-expanded', String(!!on)); $('chatToggle').textContent = on ? 'Close chat' : 'Ask about your month'; if (on) $('askInput').focus(); }
+  function openDock(on) { $('dockBody').hidden = !on; $('dockToggle').setAttribute('aria-expanded', String(!!on)); }
+  $('chatToggle').addEventListener('click', function () { openChat($('ask').hidden); });
+  $('dockToggle').addEventListener('click', function () { openDock($('dockBody').hidden); });
+  if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) openDock(false);   // a small screen starts with the dock folded
+
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
@@ -36,7 +56,7 @@
   function lotRead(hover) { $('lotRead').textContent = hover !== null && hover !== undefined ? lotText(hover) : lotText(st.lot); }
   function startPlacing() {
     if (g || placing) return;
-    placing = { prev: st.lot }; closeWizard(); $('placeBar').hidden = false;
+    go('map'); placing = { prev: st.lot }; closeWizard(); $('placeBar').hidden = false;
     $('lotSel').innerHTML = (T.validLot(st.lot) ? '' : '<option value="">Choose a lot</option>') + T.LOTS.map(function (_, i) { var l = T.lotInfo(i); return '<option value="' + i + '">Lot ' + l.n + ', ' + l.km.toFixed(2) + ' km</option>'; }).join('');
     if (T.validLot(st.lot)) $('lotSel').value = String(st.lot);
     if (scene) scene.placeMode(true); lotRead(null); $('lotSel').focus();
@@ -109,21 +129,24 @@
   $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
   $('wizDone').addEventListener('click', finishSetup);
   $('myMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
-  $('flExplore').addEventListener('click', hideFirstLook);
+  $('flExplore').addEventListener('click', function () { hideFirstLook(); go('map'); });
   $('flCompare').addEventListener('click', function () { hideFirstLook(); openCompare(); });
   $('compareBtn').addEventListener('click', openCompare);
+  $('anaCompare').addEventListener('click', openCompare);
+  $('anaMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
+  $('anaMap').addEventListener('click', function () { go('map'); });
   $('cmpClose').addEventListener('click', closeCompare);
   $('cmpApply').addEventListener('click', applyCompare);
   $('cmpHouse').addEventListener('change', function (e) { alt.house = e.target.value; renderCompare(); });
   $('cmpLevel').addEventListener('input', function (e) { alt.level = +e.target.value; renderCompare(); });
   $('cmpLot').addEventListener('change', function (e) { alt.lot = +e.target.value; renderCompare(); });
-  $('flPlay').addEventListener('click', function () { hideFirstLook(); if ($('gStart')) $('gStart').click(); });
+  $('flPlay').addEventListener('click', function () { hideFirstLook(); go('map'); openDock(true); if ($('gStart')) $('gStart').click(); });
   $('wizNext').addEventListener('click', function () { saveProfile(false); startPlacing(); });
   $('moveHouse').addEventListener('click', function () { startPlacing(); });
   $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
   $('lotConfirm').addEventListener('click', confirmLot);
   $('lotCancel').addEventListener('click', cancelLot);
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); else if (!$('ask').hidden) openChat(false); });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
   $('signOut').addEventListener('click', function () {
     store.signOut(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
@@ -138,7 +161,7 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (viewLaterAt && f === viewLaterAt) go('map'); if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onShotDone: snapshotUi, stopIdle: /[?&]stopidle\b/.test(location.search), onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
@@ -205,7 +228,8 @@
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
     chart(s.you.days); gameView(input, s);
-    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = $('compareBtn').disabled = !!g;
+    saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = $('compareBtn').disabled = $('anaCompare').disabled = $('anaMonth').disabled = !!g;
+    $('anaHome').textContent = T.homeLabel(st);
     if (!scene) onClock(clockDay, 12);
   }
   function chart(days) {
@@ -295,7 +319,7 @@
     out.querySelectorAll('[data-dismiss]').forEach(function (b) { b.onclick = function () { out.querySelector('.prop').remove(); }; });
   }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function askNow(q) { if (!q.trim()) return; $('askInput').value = q; showAnswer(AI.ask(q, { input: currentInput() })); }
+  function askNow(q) { if (!q.trim()) return; go('map'); openChat(true); $('askInput').value = q; showAnswer(AI.ask(q, { input: currentInput() })); }
   $('askChips').innerHTML = AI.EXAMPLES.map(function (q, i) { return '<button type="button" data-q="' + i + '">' + esc(q) + '</button>'; }).join('');
   $('askChips').addEventListener('click', function (e) { var i = e.target.dataset && e.target.dataset.q; if (i != null) askNow(AI.EXAMPLES[+i]); });
   $('askForm').addEventListener('submit', function (e) { e.preventDefault(); askNow($('askInput').value); });
@@ -335,15 +359,27 @@
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
+  if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
+  if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
+  if (SHOT && q0.has('viewtimer')) setTimeout(function () { go('map'); }, +q0.get('viewtimer'));      // switch back by the clock, for the real stop-and-restart test
+  if (SHOT && q0.has('dumpafter')) setTimeout(function () { if (scene) scene.shotNow(); }, +q0.get('dumpafter'));   // take the snapshot at a chosen moment
   if (SHOT && q0.has('firstlook')) showFirstLook();
   if (SHOT && q0.has('compare')) openCompare();
   if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }
-  if (SHOT) { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), inspect: vis('inspect'), skip: vis('skip') }); }
+  setView(viewFromHash());   // the first route, before the snapshot below reads what is shown
+  // screenshot mode: what is actually drawn, read at the end so it reflects the final state
+  // what the page transition is made of: it must fade only (a slide would overflow the document while it runs)
+  function fadeInfo() {
+    var rules = []; [].forEach.call(document.styleSheets, function (sh) { try { rules = rules.concat([].slice.call(sh.cssRules)); } catch (e) { /* cross-origin sheet */ } });
+    var rule = rules.filter(function (r) { return r.type === 7 && r.name === 'fade'; })[0], vis = document.querySelector('.view:not([hidden])');
+    return { found: !!rule, transform: !!rule && /transform/.test(rule.cssText), name: vis ? getComputedStyle(vis).animationName : null };
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
   else if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(+(new URLSearchParams(location.search).get('day') || 1), +(new URLSearchParams(location.search).get('hour') || 6)); scene.play();
     if (q0.has('shot') && q0.has('inspect')) scene.select(q0.get('inspect'));
     if (q0.has('shot') && q0.has('follow')) { scene.follow(true); $('follow').textContent = 'Stop following'; $('follow').classList.add('on'); } }
-  window.__terrarium = { hudWrites: function () { return hudWrites; }, inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
+  window.__terrarium = { go: go, view: function () { return view; }, openChat: openChat, hudWrites: function () { return hudWrites; }, inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
 })();

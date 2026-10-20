@@ -52,6 +52,24 @@ h = dump('firstlook=1&lot=5&frames=4'); ui = JSON.parse(attr(h, 'ui')); ok(ui.fi
 h = dump('frames=4'); ui = JSON.parse(attr(h, 'ui'));
 ok(ui.gate === 'none' && ui.wizard === 'none' && ui.firstLook === 'none' && ui.compare === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
 
+// two pages: the Map draws and runs, the Analysis page draws nothing and does no work, and moving between them works
+const both = (q) => { const hh = dump(q); return { st: JSON.parse(attr(hh, 'state')), ui: JSON.parse(attr(hh, 'ui')) }; };
+let pgs = both('frames=60');
+ok(pgs.ui.viewMap !== 'none' && pgs.ui.viewAnalysis === 'none' && pgs.st.active === true && pgs.st.perf.frames >= 55, 'the Map is shown, and the scene is drawing (' + pgs.st.perf.frames + ' of 60 frames)');
+ok(pgs.ui.fits === true, 'the Map fills the window exactly, with no page scrolling');
+ok(pgs.ui.chat === 'none' && pgs.ui.dockBody !== 'none', 'the chat starts folded and the play dock open');
+pgs = both('view=analysis&frames=60');
+ok(pgs.ui.viewAnalysis !== 'none' && pgs.ui.viewMap === 'none' && pgs.st.active === false && pgs.st.perf.frames === 0, 'on the Analysis page nothing is drawn: the scene is inactive and drew ' + pgs.st.perf.frames + ' of 60 frames');
+pgs = both('frames=20#/analysis'); ok(pgs.ui.viewAnalysis !== 'none' && pgs.st.active === false, 'an address ending #/analysis opens the Analysis page directly');
+pgs = both('view=analysis&viewlater=30&frames=90');
+ok(pgs.st.active === true && pgs.st.perf.frames >= 50 && pgs.st.perf.frames <= 70 && pgs.st.canvas[0] > 300 && pgs.st.canvas[1] > 300 && pgs.st.looping === true, 'going back to the Map resumes drawing, at a real size (drew ' + pgs.st.perf.frames + ' frames, canvas ' + pgs.st.canvas.join(' x ') + ')');
+pgs = both('view=analysis&stopidle=1&frames=100000&dumpafter=800');
+ok(pgs.st.active === false && pgs.st.looping === false && pgs.st.pending === false && pgs.st.perf.frames === 0, 'while the Analysis page shows, the scene stops asking for frames altogether (looping ' + pgs.st.looping + ', pending ' + pgs.st.pending + ', drew ' + pgs.st.perf.frames + ')');
+pgs = both('view=analysis&stopidle=1&viewtimer=300&frames=100000&dumpafter=2200');
+ok(pgs.st.active === true && pgs.st.looping === true && (pgs.st.pending === true || pgs.st.perf.frames > 0) && pgs.st.canvas[0] > 300 && pgs.st.canvas[1] > 300, 'and when the Map returns the loop starts again (a frame is requested or drawn: pending ' + pgs.st.pending + ', drew ' + pgs.st.perf.frames + ') and the canvas has a real size (' + pgs.st.canvas.join(' x ') + ')');
+ok(pgs.ui.fade.found && pgs.ui.fade.transform === false && pgs.ui.fade.name === 'fade', 'the page transition is a fade only, with no transform that could overflow the document (found ' + pgs.ui.fade.found + ', transform ' + pgs.ui.fade.transform + ', animation ' + pgs.ui.fade.name + ')');
+pgs = both('ask=What%20should%20I%20change%20first%3F&frames=20'); ok(pgs.ui.chat !== 'none', 'asking a question opens the chat');
+
 // render hygiene, from measurements: removed meshes are disposed (about 108 geometries leaked per home rebuild before), trips do not leak, and the HUD is not rewritten every frame
 const geoms = (q) => JSON.parse(attr(dump(q), 'state')).perf.geometries, hud = (q) => JSON.parse(attr(dump(q), 'state')).extra.hudWrites;
 const g0 = geoms('frames=120'), g12 = geoms('stress=12&frames=120'), g48 = geoms('stress=48&frames=280');
