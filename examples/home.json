@@ -1,0 +1,14 @@
+{
+  "format": "terrarium-home/1",
+  "home": {
+    "house": "condo",
+    "level": 5,
+    "lot": 5,
+    "acHours": 8,
+    "setpoint": 25,
+    "solarKwp": 0,
+    "trees": 3,
+    "nativeShare": 0.4,
+    "walkShare": 0.3
+  }
+}
