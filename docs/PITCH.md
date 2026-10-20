@@ -4,7 +4,7 @@ See a month in your home before you sign for it
 
 Township of Tomorrow · Elmina
 
-[Team name and members to be added]
+**Team:** Irfan Ali (software engineer) · Imarsya (cyber security) · Aimi (data science) · Adief (cyber security) · Bashirah (forensics)
 
 ## The problem
 
@@ -28,7 +28,7 @@ Elmina's nearest public transit stop is **0.93 km** from the township centre, an
 
 ## What we built
 
-![Elmina in 3D: a home among its neighbours, the bus stop 0.93 km away, and the biodiversity corridor](docs/media/township.png)
+![Elmina in 3D: a condo among its neighbours, the bus stop 0.93 km away, and the biodiversity corridor](docs/media/lab.png)
 You pick a home, then run it for a month. **Everything that moves is illustrative.**
 
 ## How it works
@@ -46,6 +46,11 @@ You pick a home, then run it for a month. **Everything that moves is illustrativ
 ![At night the windows light and the air-con glows on your home; a tall block and more trees show another choice](docs/media/night.png)
 One simulation sets the bill, the carbon and the comfort, so what you see is what is scored.
 
+## Pull your home apart
+
+![Your home lifted floor by floor over the ground beneath it, your floor marked](docs/media/exploded.png)
+Exploded view: your floors lift apart and your unit is marked. **The ground layers below (topsoil, subsoil, rock, groundwater) are a drawing; the model has no soil or water.**
+
 ## Why it fits Sime Darby Property
 
 SDP's purpose is **"Real Estate as a Value Multiplier for People, Businesses, Economies & the Planet"**, and its strategy has four pillars. We score a home on all four: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.**
@@ -60,7 +65,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (187 automated tests), the 3D township, the weekly game, 199 page checks and 58 checks in a real browser. Public data only; no SDP data.
+A working prototype in the browser: a tested model (187 automated tests), the 3D township with an exploded view, the weekly game, and 227 page checks. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
 **Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 
