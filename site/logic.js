@@ -18,6 +18,10 @@
     walkMinKm:   { v: 12,   grade: GRADE.ILLUSTRATIVE, note: 'walking pace, minutes per km' },
     tripsWeek:   { v: 10,   grade: GRADE.ILLUSTRATIVE, note: 'short trips per week within about 1 km' },
     railKm:      { v: 5.4,  grade: GRADE.REAL, note: 'Elmina centre to nearest rail station, data.gov.my GTFS feeds; centre is approximate, straight line' },
+    roofHeat:    { v: 0.08, grade: GRADE.ILLUSTRATIVE, note: 'extra air-con energy for a top-floor unit under the roof' },
+    shadeLevels: { v: 3,    grade: GRADE.ILLUSTRATIVE, note: 'levels above the ground that a plot tree can shade; none above that' },
+    liftMin:     { v: 1,    grade: GRADE.ILLUSTRATIVE, note: 'minutes to get from a unit to the ground floor by lift or stairs, before the per-level amount' },
+    liftPerLevel: { v: 0.1, grade: GRADE.ILLUSTRATIVE, note: 'extra minutes per level of height on that trip down' },
     shadePerTree: { v: 0.01, grade: GRADE.ILLUSTRATIVE, note: 'air-con energy saved per shade tree on the plot, capped at 10%' },
     corridorTrees: { v: 1450, grade: GRADE.REAL, note: 'trees planted along a 500 m stretch of the Elmina Urban Biodiversity Corridor, SDP 2024 sustainability highlights slide' },
     nudgeCap:    { v: 0.02, grade: GRADE.SOURCED, note: 'average electricity cut from home energy reports, Allcott 2011, about 2.0%' },
@@ -31,7 +35,8 @@
     condo:   { label: 'Condominium',   baseKwhDay: 6,  acFactor: 0.8 },
   };
 
-  const DEFAULTS = { baseScale: 1, house: 'terrace', acHours: 8, setpoint: 24, solarKwp: 0, walkShare: 0.2, trees: 2, nativeShare: 0.2, hotWeek: false };
+  const CONDO_LEVELS = 8;   // the drawn tower has eight levels
+  const DEFAULTS = { level: 1, baseScale: 1, house: 'terrace', acHours: 8, setpoint: 24, solarKwp: 0, walkShare: 0.2, trees: 2, nativeShare: 0.2, hotWeek: false };
   const NEIGHBOUR = Object.assign({}, DEFAULTS); // the "neighbour average", illustrative
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -61,6 +66,11 @@
   function simulate(input) {
     const c = Object.assign({}, DEFAULTS, input);
     const house = HOUSES[c.house] || HOUSES.terrace;
+    // a condo is a unit on a floor; every other home ignores the level
+    const isCondo = c.house === 'condo', lvl = isCondo ? clamp(Math.round(Number(c.level) || 1), 1, CONDO_LEVELS) : null;
+    const roofFactor = lvl === CONDO_LEVELS ? 1 + ASSUME.roofHeat.v : 1;
+    const shadeFactor = lvl === null ? 1 : clamp((ASSUME.shadeLevels.v + 1 - lvl) / ASSUME.shadeLevels.v, 0, 1);
+    const liftEach = lvl === null ? 0 : ASSUME.liftMin.v + ASSUME.liftPerLevel.v * lvl;
     const days = [];
     let kwhTotal = 0, solarTotal = 0, comfortSum = 0;
     for (let d = 1; d <= 30; d++) {
@@ -68,7 +78,7 @@
       const mean = dayMeanTemp(d, c.hotWeek, c.heat);
       const acKwh = w.acHours * ASSUME.acKw24.v * (1 - ASSUME.acPerDegree.v * (w.setpoint - 24))
                     * house.acFactor * (1 + 0.03 * (mean - 28))
-                    * (1 - Math.min(0.1, ASSUME.shadePerTree.v * c.trees));
+                    * (1 - Math.min(0.1, ASSUME.shadePerTree.v * c.trees * shadeFactor)) * roofFactor;
       const use = house.baseKwhDay * c.baseScale + acKwh;
       const solar = Math.min(c.solarKwp * ASSUME.peakSunH.v * ASSUME.solarPerf.v, ASSUME.solarShare.v * use);
       const net = use - solar;
@@ -86,7 +96,7 @@
       walked += weeklyTrips * n / 7 * share;
     });
     const driven = Math.max(0, monthTrips - walked), walkedTrips = walked;
-    const walkMin = walked * 2 * km * ASSUME.walkMinKm.v;
+    const walkMin = walked * 2 * (km * ASSUME.walkMinKm.v + liftEach);
     const carKm = driven * 2 * km;
     const carKg = carKm * ASSUME.carKgKm.v;
     const carRm = carKm * ASSUME.carRmKm.v;
@@ -218,10 +228,12 @@
     const row = (k, v, grade) => ({ k: k, v: v, grade: grade || GRADE.ILLUSTRATIVE });
     const kwhToday = d.netKwh * clk.hour / 24, wx = weatherAt(clk.day, clk.hour, input), native = Math.round(input.trees * input.nativeShare);
     const hasLot = validLot(input.lot), km = stopKmFor(input), kmGrade = hasLot ? GRADE.ILLUSTRATIVE : GRADE.REAL;
+    const lvl = input.house === 'condo' ? clamp(Math.round(Number(input.level) || 1), 1, CONDO_LEVELS) : null;
     const trip = { walkKm: km, walkMin: km * ASSUME.walkMinKm.v, carKm: 2 * km };
     switch (kind) {
       case 'home': return { title: (HOUSES[input.house] || HOUSES.terrace).label + ', your home', rows: [
         row('Air-con now', acIsOn(clk.hour, ch.acHours) ? 'On' : 'Off'), row('Air-con at night', ch.acHours + ' h at ' + ch.setpoint + ' C'),
+        row('Level', lvl === null ? 'ground (a house)' : 'level ' + lvl + ' of ' + CONDO_LEVELS + (lvl === CONDO_LEVELS ? ', under the roof' : '')),
         row('Your lot', hasLot ? 'Lot ' + (input.lot + 1) + ', ' + km.toFixed(2) + ' km from the stop' : 'not placed yet'),
         row('Rooftop solar', input.solarKwp ? input.solarKwp + ' kWp' : 'none'), row('Trees on the plot', input.trees + ' (' + native + ' native)'),
         row('Electricity figures', input.billKwh != null && Math.abs(sim.figures.monthKwh.value - input.billKwh) < 1 ? 'matched to your bill' : 'simulated', input.billKwh != null && Math.abs(sim.figures.monthKwh.value - input.billKwh) < 1 ? GRADE.REAL : GRADE.ILLUSTRATIVE),
@@ -241,8 +253,8 @@
         row('Size', kwp + ' kWp'), row('Offset today', Math.min(kwp * ASSUME.peakSunH.v * ASSUME.solarPerf.v, ASSUME.solarShare.v * d.useKwh).toFixed(1) + ' kWh'), row('Offset this month', sim.figures.solarKwh.value.toFixed(0) + ' kWh')],
         facts: ['Offset is capped at the share of use that daytime solar can cover, with no export credit.'] }; }
       case 'person': return { title: 'A resident on foot', rows: [
-        row('Trip', 'to the bus stop and back'), row('Distance each way', (hasLot ? trip.walkKm.toFixed(2) : trip.walkKm) + ' km', kmGrade), row('Walking time each way', trip.walkMin.toFixed(0) + ' min'), row('Carbon for this trip', '0 kg')],
-        facts: ['The walking pace is a placeholder. The drawing compresses the distance.'] };
+        row('Trip', 'to the bus stop and back'), row('Distance each way', (hasLot ? trip.walkKm.toFixed(2) : trip.walkKm) + ' km', kmGrade), row('Walking time each way', trip.walkMin.toFixed(0) + ' min')].concat(lvl === null ? [] : [row('Lift or stairs, each way', (ASSUME.liftMin.v + ASSUME.liftPerLevel.v * lvl).toFixed(1) + ' min')], [ row('Carbon for this trip', '0 kg')]),
+        facts: ['The walking pace is a placeholder. The drawing compresses the distance.'].concat(lvl === null ? [] : ['In a condo every trip starts with the lift or stairs, and a higher level adds a little time.']) };
       case 'car': return { title: 'A resident driving', rows: [
         row('Round trip', trip.carKm.toFixed(2) + ' km'), row('Carbon for this trip', (trip.carKm * ASSUME.carKgKm.v).toFixed(2) + ' kg'), row('Running cost', 'RM ' + (trip.carKm * ASSUME.carRmKm.v).toFixed(2))],
         facts: ['The same trip on foot would use no carbon and cost nothing.'] };
@@ -305,7 +317,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);

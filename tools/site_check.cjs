@@ -165,4 +165,24 @@ $('moveHouse').dispatchEvent(new w.Event('click', { bubbles: true })); ok(!bar()
 $('moveHouse').click(); $('signOut').click(); ok(!bar(), 'signing out closes the chooser');
 $('gateGuest').click(); $('wizNext').click(); $('lotSel').value = '3'; $('lotSel').dispatchEvent(new w.Event('change', { bubbles: true })); const usersG = JSON.stringify(stored().users);
 $('lotConfirm').click(); ok(JSON.stringify(stored().users) === usersG, 'a guest\'s lot is never written to storage'); $('signOut').click();
+// condo levels
+const figVal = (t) => [...$('figs').querySelectorAll('.fig')].find((f) => f.textContent.includes(t)).querySelector('b').textContent;
+submitGate('floor@example.com'); $('wizDone').click();
+ok($('levelRow').hidden, 'a house has no floor control');
+$('house').value = 'condo'; $('house').dispatchEvent(new w.Event('change', { bubbles: true }));
+ok(!$('levelRow').hidden && $('levelV').textContent === 'level 1 of 8', 'choosing a condo asks for the floor, starting at level 1');
+const kwhAt = (lv) => { setRange('level', lv); return figVal('Electricity this month'); };
+setRange('trees', 6); setRange('walkShare', 50);
+const k1 = kwhAt(1), k4 = kwhAt(4), k8 = kwhAt(8);
+ok(parseInt(k1) < parseInt(k4) && parseInt(k4) < parseInt(k8), 'a higher floor changes the month: level 1 ' + k1 + ', level 4 ' + k4 + ', level 8 ' + k8);
+ok($('levelV').textContent === 'level 8 of 8' && parseInt(figVal('Walking this month')) > 0, 'the floor reads out as level of eight');
+setRange('level', 6); ok(stored().users['floor@example.com'].home.level === 6 && stored().users['floor@example.com'].home.house === 'condo', 'the floor is saved with the home');
+w.__terrarium.inspect('home'); ok(/level 6 of 8/.test($('inspect').textContent), 'the home panel names your level'); w.__terrarium.inspect('person'); ok(/Lift or stairs/.test($('inspect').textContent), 'and the walking panel shows the lift time'); w.__terrarium.inspect(null);
+$('editHome').click(); ok(!$('wr_level').hidden && val('w_level') === '6', 'the set-up dialog shows the floor for a condo, with your saved value');
+setW('w_level', 3); ok(val('level') === '3' && $('levelV').textContent === 'level 3 of 8', 'and edits the same floor the page shows');
+setW('w_house', 'terrace', 'change'); ok($('wr_level').hidden && $('levelRow').hidden, 'switching to a house hides the floor everywhere');
+setW('w_house', 'condo', 'change'); ok(val('w_level') === '3', 'and switching back remembers it'); $('wizDone').click();
+$('signOut').click(); submitGate('floor@example.com'); ok(val('house') === 'condo' && val('level') === '3', 'signing back in restores the condo and its floor');
+$('gStart').click(); ok(!$('level').disabled, 'the floor can still be changed before the first week is locked in'); $('gLock').click(); ok($('level').disabled, 'and it is locked once a week has been played, like the rest of the setup'); $('gQuit').click(); ok(!$('level').disabled, 'and unlocks when the game ends');
+$('signOut').click();
 console.log('site checks passed:', n);

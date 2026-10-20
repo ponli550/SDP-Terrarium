@@ -14,9 +14,10 @@
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
   var SHOT = /[?&]shot\b/.test(location.search);
   var DEFAULT_STATE = function () { return Object.assign({}, T.DEFAULTS, { walkShare: 0.2 }); };
-  var WIZ = [['house', 'Home'], ['acHours', 'Air-con hours at night', 0, 12, 1, ' h'], ['setpoint', 'Setpoint', 22, 28, 1, ' C'], ['solarKwp', 'Rooftop solar', 0, 8, 1, ' kWp'], ['trees', 'Trees on your plot', 0, 10, 1, ''], ['nativeShare', 'Native planting', 0, 100, 10, '%']];
+  var WIZ = [['house', 'Home'], ['level', 'Your floor (level 1 is the ground floor)', 1, 8, 1, ''], ['acHours', 'Air-con hours at night', 0, 12, 1, ' h'], ['setpoint', 'Setpoint', 22, 28, 1, ' C'], ['solarKwp', 'Rooftop solar', 0, 8, 1, ' kWp'], ['trees', 'Trees on your plot', 0, 10, 1, ''], ['nativeShare', 'Native planting', 0, 100, 10, '%']];
   function wizardHtml() {
     return WIZ.map(function (f) {
+      if (f[0] === 'level') return '<div id="wr_level" hidden><label for="w_level">' + f[1] + ' <span id="w_levelV"></span></label><input type="range" id="w_level" min="1" max="8" step="1"></div>';
       if (f[0] === 'house') return '<label for="w_house">' + f[1] + '</label><select id="w_house">' + Object.keys(T.HOUSES).map(function (k) { return '<option value="' + k + '">' + T.HOUSES[k].label + '</option>'; }).join('') + '</select>';
       return '<label for="w_' + f[0] + '">' + f[1] + ' <span id="w_' + f[0] + 'V"></span></label><input type="range" id="w_' + f[0] + '" min="' + f[2] + '" max="' + f[3] + '" step="' + f[4] + '">';
     }).join('');
@@ -25,8 +26,9 @@
     WIZ.forEach(function (f) {
       var el = $('w_' + f[0]); if (!el) return;
       var v = f[0] === 'nativeShare' ? Math.round(st.nativeShare * 100) : st[f[0]]; el.value = v;
-      if (f[0] !== 'house') $('w_' + f[0] + 'V').textContent = (f[0] === 'solarKwp' && !v ? 'none' : v + f[5]);
+      if (f[0] !== 'house') $('w_' + f[0] + 'V').textContent = (f[0] === 'solarKwp' && !v ? 'none' : f[0] === 'level' ? 'level ' + v : v + f[5]);
     });
+    $('wr_level').hidden = st.house !== 'condo';
   }
   function saveProfile(setUp) { if (session && !placing) store.saveHome(P.pickHome(st), setUp); }   // a lot being tried out is not saved until it is confirmed
   // ---- placing your lot: click one on the map, or choose it from the list (so it works without a mouse or a 3D view) ----
@@ -127,7 +129,8 @@
 
   // ---- panels ----
   function sync() {
-    sel.value = st.house; ['acHours', 'setpoint', 'solarKwp', 'trees'].forEach(function (k) { $(k).value = st[k]; });
+    sel.value = st.house; ['acHours', 'setpoint', 'solarKwp', 'trees', 'level'].forEach(function (k) { $(k).value = st[k]; });
+    $('levelRow').hidden = st.house !== 'condo'; $('levelV').textContent = 'level ' + st.level + ' of ' + T.CONDO_LEVELS;
     $('walkShare').value = Math.round(st.walkShare * 100); $('nativeShare').value = Math.round(st.nativeShare * 100); $('hotWeek').checked = st.hotWeek;
     $('treesV').textContent = st.trees; $('nativeShareV').textContent = Math.round(st.nativeShare * 100) + '%';
     $('acHoursV').textContent = st.acHours + ' h'; $('setpointV').textContent = st.setpoint + ' C';
@@ -141,7 +144,7 @@
     var nb = s.neighbour.figures;
     $('figs').innerHTML = Object.keys(f).map(function (k) { var x = f[k], n = nb[k]; var cmp = (k === 'stopKm' || !n) ? '' : '<small>neighbour ' + fmt[x.unit](n.value) + '</small>'; return '<div class="fig"><small>' + x.label + '<span class="badge ' + x.grade + '">' + x.grade + '</span></small><b>' + fmt[x.unit](x.value) + '</b>' + cmp + '</div>'; }).join('');
     ['acHours', 'setpoint', 'walkShare'].forEach(function (k) { $(k).disabled = !!g; });
-    ['house', 'solarKwp', 'trees', 'nativeShare', 'hotWeek'].forEach(function (k) { $(k).disabled = !!(g && g.weekly.length); });
+    ['house', 'level', 'solarKwp', 'trees', 'nativeShare', 'hotWeek'].forEach(function (k) { $(k).disabled = !!(g && g.weekly.length); });
     $('billKwh').disabled = $('billReset').disabled = $('billForm').querySelector('button[type=submit]').disabled = !!g;
     billView(f);
     $('skip').hidden = !anim;
@@ -244,7 +247,7 @@
   $('askForm').addEventListener('submit', function (e) { e.preventDefault(); askNow($('askInput').value); });
 
   // ---- controls ----
-  ['acHours', 'setpoint', 'solarKwp', 'trees'].forEach(function (k) { $(k).addEventListener('input', function (e) { st[k] = +e.target.value; if (g && !g.weekly.length) g = T.newGame(st); render(); }); });
+  ['acHours', 'setpoint', 'solarKwp', 'trees', 'level'].forEach(function (k) { $(k).addEventListener('input', function (e) { st[k] = +e.target.value; if (g && !g.weekly.length) g = T.newGame(st); render(); }); });
   $('walkShare').addEventListener('input', function (e) { st.walkShare = +e.target.value / 100; render(); });
   $('nativeShare').addEventListener('input', function (e) { st.nativeShare = +e.target.value / 100; if (g && !g.weekly.length) g = T.newGame(st); render(); });
   sel.addEventListener('change', function (e) { st.house = e.target.value; if (g && !g.weekly.length) g = T.newGame(st); render(); });
@@ -265,6 +268,7 @@
     if (q0.get('house')) st.house = q0.get('house');
     ['acHours', 'setpoint', 'solarKwp', 'trees'].forEach(function (k) { if (q0.has(k)) st[k] = +q0.get(k); });
     if (q0.has('lot')) st.lot = +q0.get('lot');
+    if (q0.has('level')) st.level = +q0.get('level');
     if (q0.has('walk')) st.walkShare = +q0.get('walk'); if (q0.has('native')) st.nativeShare = +q0.get('native');
     if (q0.has('speed')) speed = +q0.get('speed');
     if (q0.has('autoweek')) { g = T.newGame(st); }
@@ -273,6 +277,7 @@
   render();
   if (SHOT) { session = Object.assign({ guest: true, setUp: true }, store.guest()); $('gate').hidden = true; showChip(); }   // screenshot mode keeps the URL's presets
   else { var cur = store.current(); if (cur) startSession(cur); else showGate(); }
+  if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.has('place')) { startPlacing(); if (q0.has('leave')) cancelLot(); }

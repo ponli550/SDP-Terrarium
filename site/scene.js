@@ -86,7 +86,7 @@
     // ---------- homes ----------
     var homes = new THREE.Group(); scene.add(homes);
     var homePalette = [0xf4e4c1, 0xe8c9a0, 0xd9e4c8, 0xf0d5d0, 0xcfe0e8, 0xf6e8a8];
-    function building(type, color, withMarks) {
+    function building(type, color, withMarks, level) {
       var g = new THREE.Group(), fp = T.FOOTPRINT[type] || T.FOOTPRINT.terrace;
       var w = fp[0], h = { terrace: 6.5, semid: 7.5, condo: 30 }[type] || 6.5, d = fp[1];
       add(g, box(w, h, d), M(color), 0, h / 2, 0);
@@ -101,9 +101,12 @@
       if (type !== 'condo') add(g, box(1.7, 3.2, 0.2), M(0x5d4037), -w / 2 + w / (cols * 2), 1.6, d / 2 + 0.1);
       else add(g, box(3, 3, 0.2), M(0x5d4037), 0, 1.5, d / 2 + 0.1);
       if (withMarks) {
-        var ac = add(g, box(2.2, 1.4, 1.2), M(0xeceff1), w / 2 + 0.7, Math.min(h - 1.2, 5), 0);
-        var glow = add(g, new THREE.SphereGeometry(2.2, 12, 8), glowMat, w / 2 + 2.2, Math.min(h - 1.2, 5), 0, false);
-        g.userData.glow = glow; g.userData.ac = ac;
+        // a condo unit sits at its own level: the air-con and its glow are there, and your window is marked on the tower
+        var unitY = type === 'condo' ? 3 + (level - 1) * 3.4 : Math.min(h - 1.2, 5);
+        var ac = add(g, box(2.2, 1.4, 1.2), M(0xeceff1), w / 2 + 0.7, unitY, 0);
+        var glow = add(g, new THREE.SphereGeometry(2.2, 12, 8), glowMat, w / 2 + 2.2, unitY, 0, false);
+        if (type === 'condo') add(g, box(w + 0.5, 1.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.85 }), 0, unitY, d / 2 + 0.3, false);
+        g.userData.glow = glow; g.userData.ac = ac; g.userData.unitY = unitY;
       }
       g.userData.roof = { y: h + 0.8, w: w, d: d, type: type };
       return g;
@@ -126,13 +129,14 @@
     function rebuildHome(input) {
       var native = Math.round(input.trees * input.nativeShare);
       var lotIdx = T.validLot(input.lot) ? input.lot : 0;
-      var key = [input.house, input.solarKwp, input.trees, native, lotIdx].join('|');
+      var lvl = input.house === 'condo' ? Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(input.level) || 1))) : 0;
+      var key = [input.house, input.solarKwp, input.trees, native, lotIdx, lvl].join('|');
       if (key === mineKey) return; mineKey = key;
       currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1];
       if (builtLot !== lotIdx) { buildNeighbours(lotIdx); builtLot = lotIdx; }
       if (mine) homes.remove(mine);
       if (ring) scene.remove(ring);
-      mine = building(input.house, 0xfff1cf, true); mine.userData.inspect = 'home'; mine.userData.lot = lotIdx;
+      mine = building(input.house, 0xfff1cf, true, lvl); mine.userData.inspect = 'home'; mine.userData.lot = lotIdx;
       mine.position.set(HOME_POS.x, 0, HOME_POS.z); homes.add(mine);
       pin.userData.baseY = mine.userData.roof.y + 8;
       ring = add(scene, new THREE.RingGeometry(10, 11.2, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
@@ -384,7 +388,7 @@
         if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), homePos: { x: HOME_POS.x, z: HOME_POS.z }, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
         return;
       }

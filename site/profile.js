@@ -4,7 +4,7 @@
 (function (root) {
   'use strict';
   var KEY = 'terrarium.v1', HOUSES = ['terrace', 'semid', 'condo'];
-  var NUM = { acHours: [0, 12, 1], setpoint: [22, 28, 1], solarKwp: [0, 8, 1], trees: [0, 10, 1], nativeShare: [0, 1, 0], walkShare: [0, 1, 0], baseScale: [0.05, 8, 0] };
+  var NUM = { acHours: [0, 12, 1], setpoint: [22, 28, 1], solarKwp: [0, 8, 1], trees: [0, 10, 1], level: [1, 8, 1], nativeShare: [0, 1, 0], walkShare: [0, 1, 0], baseScale: [0.05, 8, 0] };
   var clamp = function (x, lo, hi) { return Math.min(hi, Math.max(lo, x)); };
 
   var validEmail = function (e) { return typeof e === 'string' && e.trim().length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()); };
