@@ -354,7 +354,30 @@
     // ---------- the frame ----------
     var perf = { frames: 0, jsMs: 0, labelsMs: 0 };   // measured, not guessed: JS time per frame and in the label pass
     var prevT = 0, frames = 0, lerp = function (a, b, t) { return a + (b - a) * t; };
+    var pending = false;   // an animation frame has been requested and has not run yet
+    function schedule() { if (pending) return; pending = true; root.requestAnimationFrame(function (t) { pending = false; frame(t); }); }
+    var active = true, looping = true;   // active is false while the Analysis page is showing: no drawing, no clock, and no frame requests at all
+    // screenshot mode only: write what the checks need into the page once the frame budget is spent
+    function shotDone() {
+      if (hooks.onShotDone) hooks.onShotDone();
+        root.__shotDone = true;
+        if (hooks.clickLot !== undefined && hooks.clickLot !== null) { api.debugClickLot(hooks.clickLot); renderer.render(scene, camera); }
+        if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
+        if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
+        var nt = newestAgent();
+        document.body.dataset.state = JSON.stringify({ active: active, looping: looping, pending: pending, canvas: [renderer.domElement.width, renderer.domElement.height], agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
+    }
     function frame(now) {
+      if (!active) {
+        if (hooks.maxFrames && !hooks.stopIdle) {   // screenshot mode counts idle frames on a timer, because a headless browser stops ticking when nothing is drawn (stopidle turns that off to test the real stop)
+          frames++; prevT = now; if (hooks.onFrame) hooks.onFrame(frames);
+          if (frames >= hooks.maxFrames) { shotDone(); return; }
+          root.setTimeout(function () { frame(performance.now()); }, 0); return;
+        }
+        looping = false; return;   // inactive: stop asking for frames at all; setActive(true) starts the loop again
+      }
+      looping = true;
       var t0 = performance.now();
       if (hooks.onFrame) hooks.onFrame(frames);
       var dt = hooks.fixedStep || Math.min(0.1, (now - prevT) / 1000 || 0); prevT = now; frames++;
@@ -393,25 +416,17 @@
       controls.update(); var tl = performance.now(); placeLabels(); perf.labelsMs += performance.now() - tl;
       renderer.render(scene, camera);
       perf.frames++; perf.jsMs += performance.now() - t0;
-      if (hooks.maxFrames && frames >= hooks.maxFrames) {
-        root.__shotDone = true;
-        if (hooks.clickLot !== undefined && hooks.clickLot !== null) { api.debugClickLot(hooks.clickLot); renderer.render(scene, camera); }
-        if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
-        if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
-        var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
-        try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
-        return;
-      }
-      root.requestAnimationFrame(frame);
+      if (hooks.maxFrames && frames >= hooks.maxFrames) { shotDone(); return; }
+      schedule();
     }
 
     function resize() {
-      var w = container.clientWidth || 800, h = container.clientHeight || 500;
+      var w = container.clientWidth, h = container.clientHeight;
+      if (!w || !h) return;   // hidden (the Analysis page): keep the last size
       renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
     }
     resize(); if (root.ResizeObserver) new root.ResizeObserver(resize).observe(container); else root.addEventListener('resize', resize);
-    root.requestAnimationFrame(frame);
+    schedule();
 
     var padHits = null;
     var api = {
@@ -424,6 +439,11 @@
       isRunning: function () { return running; },
       skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); disposeTree(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
       clock: function () { return { day: clock.day, hour: clock.hour }; },
+      setActive: function (on) { on = !!on; if (on === active) return; active = on; if (on) { prevT = 0; if (!looping) { looping = true; schedule(); } } },
+      isActive: function () { return active; },
+      shotNow: shotDone,
+      isLooping: function () { return looping; },
+      resize: resize,
       placeMode: setPlacing,
       isPlacing: function () { return placing; },
       // a real pointer click on a lot's pad, at the screen position it projects to: proves the whole path from click to the page
