@@ -35,7 +35,13 @@
 
     // ---------- helpers ----------
     var mats = {};
-    function M(color) { return mats[color] || (mats[color] = new THREE.MeshLambertMaterial({ color: color })); }
+    var sharedMats = new Set();   // materials reused across objects: never disposed
+    function M(color) { if (!mats[color]) { mats[color] = new THREE.MeshLambertMaterial({ color: color }); sharedMats.add(mats[color]); } return mats[color]; }
+    // A removed object still holds GPU buffers until it is disposed (measured: about 108 geometries leaked per home rebuild).
+    function disposeTree(o) {
+      o.traverse(function (n) { if (n.geometry) n.geometry.dispose(); var m = n.material; if (m) (Array.isArray(m) ? m : [m]).forEach(function (x) { if (!sharedMats.has(x)) x.dispose(); }); });
+    }
+    function clearGroup(g) { while (g.children.length) { var c = g.children[0]; g.remove(c); disposeTree(c); } }
     function add(parent, geo, mat, x, y, z, shadow) {
       var m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
       if (shadow !== false) { m.castShadow = true; m.receiveShadow = true; }
@@ -44,6 +50,7 @@
     var box = function (w, h, d) { return new THREE.BoxGeometry(w, h, d); };
     var winMat = new THREE.MeshLambertMaterial({ color: 0x9fd0e6, emissive: 0xffd98a, emissiveIntensity: 0 });
     var glowMat = new THREE.MeshBasicMaterial({ color: 0x8fe6ff, transparent: true, opacity: 0 });
+    sharedMats.add(winMat); sharedMats.add(glowMat);
     function rnd(seed) { var s = seed; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 
     // ---------- ground, roads, corridor ----------
@@ -117,7 +124,7 @@
     scene.add(plotTrees);
     var HOME_POS = { x: T.LOTS[0][0], z: T.LOTS[0][1] }, currentLot = 0, builtLot = -1, neigh = new THREE.Group(); scene.add(neigh);
     function buildNeighbours(excludeLot) {
-      while (neigh.children.length) neigh.remove(neigh.children[0]);
+      clearGroup(neigh);
       T.LOTS.forEach(function (p, i) {
         if (i === excludeLot) return;
         var t = building(T.lotNeighbourType(i), homePalette[i % homePalette.length], false);
@@ -134,15 +141,15 @@
       if (key === mineKey) return; mineKey = key;
       currentLot = lotIdx; HOME_POS.x = T.LOTS[lotIdx][0]; HOME_POS.z = T.LOTS[lotIdx][1];
       if (builtLot !== lotIdx) { buildNeighbours(lotIdx); builtLot = lotIdx; }
-      if (mine) homes.remove(mine);
-      if (ring) scene.remove(ring);
+      if (mine) { homes.remove(mine); disposeTree(mine); }
+      if (ring) { scene.remove(ring); disposeTree(ring); }
       mine = building(input.house, 0xfff1cf, true, lvl); mine.userData.inspect = 'home'; mine.userData.lot = lotIdx;
       mine.position.set(HOME_POS.x, 0, HOME_POS.z); homes.add(mine);
       pin.userData.baseY = mine.userData.roof.y + 8;
       ring = add(scene, new THREE.RingGeometry(10, 11.2, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
       ring.rotation.x = -Math.PI / 2;
       panels.userData.inspect = 'solar';
-      while (panels.children.length) panels.remove(panels.children[0]);
+      clearGroup(panels);
       var roof = mine.userData.roof, n = Math.round(input.solarKwp), cols = roof.type === 'condo' ? 3 : 4;
       for (var p = 0; p < n; p++) {
         var pr = Math.floor(p / cols), pc = p % cols;
@@ -150,7 +157,7 @@
         panel.rotation.x = -0.28;
       }
       panels.position.set(HOME_POS.x, 0, HOME_POS.z); if (!panels.parent) scene.add(panels);
-      while (plotTrees.children.length) plotTrees.remove(plotTrees.children[0]);
+      clearGroup(plotTrees);
       for (var t = 0; t < input.trees; t++) {
         var pos = T.PLOT_SLOTS[t % T.PLOT_SLOTS.length], x = HOME_POS.x + pos[0], z = HOME_POS.z + pos[1];
         if (t < native) nativeTree(plotTrees, x, z, 1.15, 900 + t); else ornamentalTree(plotTrees, x, z, 1.05);
@@ -345,8 +352,11 @@
     }
 
     // ---------- the frame ----------
+    var perf = { frames: 0, jsMs: 0, labelsMs: 0 };   // measured, not guessed: JS time per frame and in the label pass
     var prevT = 0, frames = 0, lerp = function (a, b, t) { return a + (b - a) * t; };
     function frame(now) {
+      var t0 = performance.now();
+      if (hooks.onFrame) hooks.onFrame(frames);
       var dt = hooks.fixedStep || Math.min(0.1, (now - prevT) / 1000 || 0); prevT = now; frames++;
       var sp = Math.min(speed, 4), hr = clock.hour;
       if (running) stepClock(dt * speed);
@@ -366,7 +376,7 @@
       rain.visible = !!wx.rain;
       if (wx.rain) { var pa = rain.geometry.attributes.position; for (var i = 0; i < N; i++) { var y = pa.array[i * 6 + 1] - dt * 60 * (sp / 2 + 0.5); if (y < 0) y += 70; pa.array[i * 6 + 1] = y; pa.array[i * 6 + 4] = y - 3; } pa.needsUpdate = true; }
       // movers
-      for (var a = agents.length - 1; a >= 0; a--) { followPath(agents[a], dt * (0.6 + sp * 0.4)); if (agents[a].done) { scene.remove(agents[a].obj); agents.splice(a, 1); } }
+      for (var a = agents.length - 1; a >= 0; a--) { followPath(agents[a], dt * (0.6 + sp * 0.4)); if (agents[a].done) { scene.remove(agents[a].obj); disposeTree(agents[a].obj); agents.splice(a, 1); } }
       updateBus(dt * (0.6 + sp * 0.4));
       pin.position.set(HOME_POS.x, (pin.userData.baseY || 14) + Math.sin(now / 400) * 0.8, HOME_POS.z);
       if (selected) { if (!selected.parent) select(null); else outline.setFromObject(selected); }
@@ -380,15 +390,16 @@
       if (placing) pads.forEach(function (p, i) { var chosen = T.validLot(input && input.lot) && input.lot === i; p.material.color.setHex(chosen ? 0x43a047 : i === hoverLot ? 0xffd54f : 0x4fc3f7); p.material.opacity = chosen ? 0.6 : i === hoverLot ? 0.55 : 0.3; });
       if (hooks.wheel && frames === 2) { shotZoom.start = camera.position.distanceTo(controls.target); renderer.domElement.dispatchEvent(new WheelEvent('wheel', { deltaY: hooks.wheel, cancelable: true, bubbles: true })); }
       if (hooks.wheel && frames === 3) shotZoom.after1 = camera.position.distanceTo(controls.target);
-      controls.update(); placeLabels();
+      controls.update(); var tl = performance.now(); placeLabels(); perf.labelsMs += performance.now() - tl;
       renderer.render(scene, camera);
+      perf.frames++; perf.jsMs += performance.now() - t0;
       if (hooks.maxFrames && frames >= hooks.maxFrames) {
         root.__shotDone = true;
         if (hooks.clickLot !== undefined && hooks.clickLot !== null) { api.debugClickLot(hooks.clickLot); renderer.render(scene, camera); }
         if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        document.body.dataset.state = JSON.stringify({ agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
         return;
       }
@@ -411,7 +422,7 @@
       play: function (cb) { onEnd = cb || null; running = true; },
       pause: function () { running = false; },
       isRunning: function () { return running; },
-      skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
+      skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); disposeTree(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
       clock: function () { return { day: clock.day, hour: clock.hour }; },
       placeMode: setPlacing,
       isPlacing: function () { return placing; },
@@ -433,7 +444,7 @@
       follow: function (on) {
         following = !!on; if (!on) { returning = 3; return { following: false }; }
         if (!newestAgent() && !running) return { following: true, waiting: false, note: 'press play, then follow' };
-        if (!newestAgent()) { var m = nextTripMoment(clock.day, clock.hour); if (m && (m.day <= range.to)) { agents.forEach(function (a) { scene.remove(a.obj); }); agents = []; clock.day = m.day; clock.hour = m.hour; emit(); } }
+        if (!newestAgent()) { var m = nextTripMoment(clock.day, clock.hour); if (m && (m.day <= range.to)) { agents.forEach(function (a) { scene.remove(a.obj); disposeTree(a.obj); }); agents = []; clock.day = m.day; clock.hour = m.hour; emit(); } }
         return { following: true, waiting: !newestAgent() };
       },
       isFollowing: function () { return following; },
