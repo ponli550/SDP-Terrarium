@@ -113,4 +113,15 @@ h = dump('picks=lot&frames=12'); ok(JSON.parse(attr(h, 'picks')).lot === 'absent
 
 h = dump('autoweek=1&speed=8&walk=0.5&frames=450');
 ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in week plays to its end and opens round 2 with its event');
+// view modes: Lab at rest, Exploded pulls your own home's floors apart
+const viewOf = (q) => { const hh = dump(q); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
+let vm = viewOf('house=condo&level=5&lot=0&frames=60');
+ok(vm.view.mode === 'lab' && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.ui.viewBtn === 'false/true', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
+vm = viewOf('house=condo&level=5&lot=0&frames=90&mode=exploded');
+ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === [0, 5, 10, 15, 20, 25, 30, 35].join() && vm.view.roofY === 40 && vm.view.panelsY === 40, 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
+ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
+vm = viewOf('house=terrace&lot=3&frames=90&mode=exploded');
+ok(vm.view.floors === 2 && vm.view.floorY.join() === '0,4' && vm.view.unitFloor === -1 && vm.view.unitLabelShown === false, 'a terrace explodes into its two storeys and has no unit floor to point at');
+vm = viewOf('house=condo&level=2&lot=0&frames=90&mode=exploded');
+ok(vm.view.unitFloor === 1, 'the highlighted floor follows the level you chose (level 2 is floor index ' + vm.view.unitFloor + ')');
 console.log('browser checks passed:', n);

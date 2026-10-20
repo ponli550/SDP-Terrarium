@@ -96,30 +96,44 @@
     function building(type, color, withMarks, level) {
       var g = new THREE.Group(), fp = T.FOOTPRINT[type] || T.FOOTPRINT.terrace;
       var w = fp[0], h = { terrace: 6.5, semid: 7.5, condo: 30 }[type] || 6.5, d = fp[1];
-      add(g, box(w, h, d), M(color), 0, h / 2, 0);
-      add(g, box(w + 1.2, 0.7, d + 1.2), M(0x8d6e63), 0, h + 0.35, 0);               // roof slab
-      add(g, box(w + 1.2, 0.6, 0.4), M(0xd7ccc8), 0, h + 1.0, d / 2 + 0.4);           // parapet
+      // your own home is built as separate floors so the Exploded view can pull them apart; at rest they stack to the same box
+      var bounds = type === 'condo' ? [0, 4.7, 8.1, 11.5, 14.9, 18.3, 21.7, 25.1, 30] : [0, 3.6, h], nF = bounds.length - 1, floorG = [], roofG = g;
+      if (withMarks) {
+        for (var f = 0; f < nF; f++) {
+          var fg = new THREE.Group(), fh = bounds[f + 1] - bounds[f], fgeo = box(w, fh, d), fmat = new THREE.MeshLambertMaterial({ color: color });
+          add(fg, fgeo, fmat, 0, (bounds[f] + bounds[f + 1]) / 2, 0);
+          var edges = new THREE.LineSegments(new THREE.EdgesGeometry(fgeo), new THREE.LineBasicMaterial({ color: 0x37474f })); edges.position.set(0, (bounds[f] + bounds[f + 1]) / 2, 0); edges.visible = false; fg.add(edges);
+          fg.userData.mat = fmat; fg.userData.edges = edges; g.add(fg); floorG.push(fg);
+        }
+        roofG = new THREE.Group(); g.add(roofG);
+      } else add(g, box(w, h, d), M(color), 0, h / 2, 0);
+      var onFloor = function (y) { if (!withMarks) return g; for (var i = 0; i < nF; i++) if (y < bounds[i + 1]) return floorG[i]; return floorG[nF - 1]; };
+      add(roofG, box(w + 1.2, 0.7, d + 1.2), M(0x8d6e63), 0, h + 0.35, 0);               // roof slab
+      add(roofG, box(w + 1.2, 0.6, 0.4), M(0xd7ccc8), 0, h + 1.0, d / 2 + 0.4);           // parapet
       var rows = type === 'condo' ? 8 : 2, cols = type === 'condo' ? 3 : (type === 'semid' ? 3 : 2);
       for (var r = 0; r < rows; r++) for (var cc = 0; cc < cols; cc++) {
         var wx = -w / 2 + (cc + 0.5) * (w / cols), wy = type === 'condo' ? 3 + r * 3.4 : (r === 0 ? 2.2 : 4.9);
         if (r === 0 && type !== 'condo' && cc === 0) continue;                         // leave room for the door
-        add(g, box(1.7, 1.5, 0.15), winMat, wx, wy, d / 2 + 0.08, false);
+        add(onFloor(wy), box(1.7, 1.5, 0.15), winMat, wx, wy, d / 2 + 0.08, false);
       }
-      if (type !== 'condo') add(g, box(1.7, 3.2, 0.2), M(0x5d4037), -w / 2 + w / (cols * 2), 1.6, d / 2 + 0.1);
-      else add(g, box(3, 3, 0.2), M(0x5d4037), 0, 1.5, d / 2 + 0.1);
+      if (type !== 'condo') add(onFloor(1.6), box(1.7, 3.2, 0.2), M(0x5d4037), -w / 2 + w / (cols * 2), 1.6, d / 2 + 0.1);
+      else add(onFloor(1.5), box(3, 3, 0.2), M(0x5d4037), 0, 1.5, d / 2 + 0.1);
       if (withMarks) {
         // a condo unit sits at its own level: the air-con and its glow are there, and your window is marked on the tower
         var unitY = type === 'condo' ? 3 + (level - 1) * 3.4 : Math.min(h - 1.2, 5);
-        var ac = add(g, box(2.2, 1.4, 1.2), M(0xeceff1), w / 2 + 0.7, unitY, 0);
-        var glow = add(g, new THREE.SphereGeometry(2.2, 12, 8), glowMat, w / 2 + 2.2, unitY, 0, false);
-        if (type === 'condo') add(g, box(w + 0.5, 1.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.85 }), 0, unitY, d / 2 + 0.3, false);
+        var uf = onFloor(unitY), ac = add(uf, box(2.2, 1.4, 1.2), M(0xeceff1), w / 2 + 0.7, unitY, 0);
+        var glow = add(uf, new THREE.SphereGeometry(2.2, 12, 8), glowMat, w / 2 + 2.2, unitY, 0, false);
+        if (type === 'condo') add(uf, box(w + 0.5, 1.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.85 }), 0, unitY, d / 2 + 0.3, false);
         g.userData.glow = glow; g.userData.ac = ac; g.userData.unitY = unitY;
+        g.userData.floors = floorG; g.userData.roofG = roofG; g.userData.gap = type === 'condo' ? 5 : 4;
+        if (type === 'condo') { var anc = new THREE.Object3D(); anc.position.set(0, unitY + 1.4, d / 2 + 0.5); uf.add(anc); g.userData.unitFloor = floorG.indexOf(uf); g.userData.unitAnchor = anc; }
       }
       g.userData.roof = { y: h + 0.8, w: w, d: d, type: type };
       return g;
     }
     var pin = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.5, 10), new THREE.MeshLambertMaterial({ color: 0xe53935, emissive: 0x7a1010 }));
     pin.rotation.x = Math.PI; scene.add(pin);
+    var viewMode = 'lab', explode = 0, explodeGoal = 0, unitLabel = null;
     var mine = null, mineKey = '', plotTrees = new THREE.Group(), panels = new THREE.Group(), ring = null;
     scene.add(plotTrees);
     var HOME_POS = { x: T.LOTS[0][0], z: T.LOTS[0][1] }, currentLot = 0, builtLot = -1, neigh = new THREE.Group(); scene.add(neigh);
@@ -148,6 +162,8 @@
       pin.userData.baseY = mine.userData.roof.y + 8;
       ring = add(scene, new THREE.RingGeometry(10, 11.2, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
       ring.rotation.x = -Math.PI / 2;
+      if (unitLabel) { unitLabel.el.remove(); labels.splice(labels.indexOf(unitLabel), 1); unitLabel = null; }
+      if (mine.userData.unitAnchor) { label('Your unit, level ' + lvl, mine.userData.unitAnchor, 0, 'unit'); unitLabel = labels[labels.length - 1]; unitLabel.hidden = true; unitLabel.el.style.display = 'none'; }
       panels.userData.inspect = 'solar';
       clearGroup(panels);
       var roof = mine.userData.roof, n = Math.round(input.solarKwp), cols = roof.type === 'condo' ? 3 : 4;
@@ -158,6 +174,7 @@
       }
       panels.position.set(HOME_POS.x, 0, HOME_POS.z); if (!panels.parent) scene.add(panels);
       clearGroup(plotTrees);
+      if (viewMode === 'exploded') focusExploded();
       for (var t = 0; t < input.trees; t++) {
         var pos = T.PLOT_SLOTS[t % T.PLOT_SLOTS.length], x = HOME_POS.x + pos[0], z = HOME_POS.z + pos[1];
         if (t < native) nativeTree(plotTrees, x, z, 1.15, 900 + t); else ornamentalTree(plotTrees, x, z, 1.05);
@@ -317,11 +334,42 @@
     label('Bus, scheduled (illustrative)', busObj.obj, 7, 'dim');
     var v = new THREE.Vector3();
     function setPlacing(on) {
+      if (on && viewMode === 'exploded') setViewMode('lab');
       placing = !!on; hoverLot = -1;
       pads.forEach(function (p) { p.visible = placing; });
       if (placing && !padLabels.length) T.LOTS.forEach(function (p, i) { label('Lot ' + (i + 1), anchor(p[0], 1, p[1] + 1), 0, 'lotlabel'); padLabels.push(labels[labels.length - 1]); });
       padLabels.forEach(function (l) { l.hidden = !placing; l.el.style.display = placing ? '' : 'none'; });
       if (placing) { select(null); flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
+    }
+    // ---------- view modes: Lab (the township) and Exploded (your home's floors pulled apart) ----------
+    function focusExploded() {
+      var u = mine && mine.userData; if (!u || !u.floors) return;
+      var total = u.roof.y + 1 + u.floors.length * u.gap;
+      flyGoal = { target: new THREE.Vector3(HOME_POS.x, total / 2, HOME_POS.z) }; zoomGoal = Math.max(55, total * 1.7 + 20);
+    }
+    function setViewMode(m) {
+      m = m === 'exploded' ? 'exploded' : 'lab'; if (m === viewMode) return;
+      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0; neigh.visible = m !== 'exploded';
+      if (m === 'exploded') { if (placing) setPlacing(false); select(null); following = false; focusExploded(); }
+      else { flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
+      if (hooks.onViewMode) hooks.onViewMode(viewMode);
+    }
+    function applyExplode(dt) {
+      var k = reduce ? 1 : 1 - Math.pow(0.9, Math.min(dt, 0.1) * 60);
+      explode += (explodeGoal - explode) * k; if (Math.abs(explodeGoal - explode) < 0.002) explode = explodeGoal;
+      var u = mine && mine.userData; if (!u || !u.floors) return;
+      var lift = u.floors.length * u.gap * explode;
+      u.floors.forEach(function (fg, i) {
+        fg.position.y = i * u.gap * explode; fg.userData.edges.visible = explode > 0.02;
+        var mine1 = i === u.unitFloor; fg.userData.mat.emissive.setHex(mine1 ? 0x2e7d32 : 0x000000).multiplyScalar(mine1 ? 0.55 * explode : 0);
+      });
+      u.roofG.position.y = lift; panels.position.y = lift;
+      if (unitLabel) { var show = explode > 0.6; unitLabel.hidden = !show; if (!show) unitLabel.el.style.display = 'none'; }
+      pin.userData.lift = lift;
+    }
+    function viewState() {
+      var u = mine && mine.userData;
+      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
@@ -365,7 +413,7 @@
         if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ active: active, looping: looping, pending: pending, canvas: [renderer.domElement.width, renderer.domElement.height], agents: agents.length, following: following, day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        document.body.dataset.state = JSON.stringify({ active: active, looping: looping, pending: pending, canvas: [renderer.domElement.width, renderer.domElement.height], agents: agents.length, following: following, view: viewState(), day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
     }
     function frame(now) {
@@ -401,7 +449,8 @@
       // movers
       for (var a = agents.length - 1; a >= 0; a--) { followPath(agents[a], dt * (0.6 + sp * 0.4)); if (agents[a].done) { scene.remove(agents[a].obj); disposeTree(agents[a].obj); agents.splice(a, 1); } }
       updateBus(dt * (0.6 + sp * 0.4));
-      pin.position.set(HOME_POS.x, (pin.userData.baseY || 14) + Math.sin(now / 400) * 0.8, HOME_POS.z);
+      applyExplode(dt);
+      pin.position.set(HOME_POS.x, (pin.userData.baseY || 14) + (pin.userData.lift || 0) + Math.sin(now / 400) * 0.8, HOME_POS.z);
       if (selected) { if (!selected.parent) select(null); else outline.setFromObject(selected); }
       if (following) { flyGoal = null; zoomGoal = null; var tg = newestAgent(); if (tg) { controls.target.lerp(tg.position, 0.12); camera.position.lerp(tg.position.clone().add(offset), 0.06); } }
       else if (returning > 0) { returning -= dt; controls.target.lerp(DEFAULT_TGT, 0.08); camera.position.lerp(DEFAULT_CAM, 0.06); }
@@ -442,6 +491,8 @@
       setActive: function (on) { on = !!on; if (on === active) return; active = on; if (on) { prevT = 0; if (!looping) { looping = true; schedule(); } } },
       isActive: function () { return active; },
       shotNow: shotDone,
+      setViewMode: setViewMode,
+      viewMode: function () { return viewMode; },
       isLooping: function () { return looping; },
       resize: resize,
       placeMode: setPlacing,
