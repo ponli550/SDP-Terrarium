@@ -91,6 +91,14 @@
       });
       var ch = b.cl({ kind: 'change', lever: sug[0].key }); b.cards.push({ type: 'confirm', lever: sug[0].key, claim: ch });
     } },
+    what_if_many: { kind: 'read', describe: 'The combined effect of several changes applied together. They overlap, so it is not the sum of the single effects.', params: { levers: 1 }, run: function (a, ctx, b) {
+      var e = T.combinedEffect(ctx.input, a.levers), names = e.keys.map(function (k) { return nm(T.LEVERS.find(function (l) { return l.key === k; }).label); });
+      var c = function (field, value) { return b.cl({ kind: 'combined', levers: e.keys, field: field, value: value }); };
+      var R = function (n) { return Math.round(n); };
+      b.text.push('Together, ' + names.join(' and ') + ' would take the modelled running cost for the month from RM ' + fg(c('runBefore', R(e.runBefore)), fnum(e.runBefore, 0)) + ' to RM ' + fg(c('runAfter', R(e.runAfter)), fnum(e.runAfter, 0)) + ', and the carbon from ' + fg(c('carbonBefore', R(e.carbonBefore)), fnum(e.carbonBefore, 0)) + ' kg to ' + fg(c('carbonAfter', R(e.carbonAfter)), fnum(e.carbonAfter, 0)) + ' kg.');
+      b.text.push('The home score would go from ' + fg(c('scoreBefore', R(e.scoreBefore)), fnum(e.scoreBefore, 0)) + ' to ' + fg(c('scoreAfter', R(e.scoreAfter)), fnum(e.scoreAfter, 0)) + '; comfort ' + (e.comfortDrop > 0 ? 'drops by ' + fg(c('comfortDrop', R(e.comfortDrop)), fnum(e.comfortDrop, 0)) + ' points' : 'holds or improves') + '.');
+      if (e.keys.length > 1) b.text.push('These changes overlap, so they do not simply add up: adding the single effects would suggest ' + fg(c('additiveCarbon', R(e.additiveCarbon)), fnum(e.additiveCarbon, 0)) + ' kg and RM ' + fg(c('additiveRm', R(e.additiveRm)), fnum(e.additiveRm, 0)) + ' saved, but together they save ' + fg(c('carbonSaved', R(e.carbonSaved)), fnum(e.carbonSaved, 0)) + ' kg and RM ' + fg(c('rmSaved', R(e.rmSaved)), fnum(e.rmSaved, 0)) + '.');
+    } },
     what_if: { kind: 'read', describe: 'The effect of one change.', params: { lever: 1 }, run: function (a, ctx, b) {
       var e = leverEffect(ctx.input, a.lever);
       var c = b.cl({ kind: 'lever', lever: a.lever, field: 'carbonKg', value: Math.round(e.carbonKg) }), r = b.cl({ kind: 'lever', lever: a.lever, field: 'rm', value: Math.round(e.rm) }), d = b.cl({ kind: 'lever', lever: a.lever, field: 'comfortDrop', value: Math.round(e.comfortDrop) });
@@ -119,6 +127,7 @@
     if ('lever' in t.params && !T.LEVERS.some(function (l) { return l.key === a.lever; })) return 'Unknown lever.';
     if ('key' in t.params && !['energy', 'resilience', 'community', 'biodiversity'].includes(a.key)) return 'Unknown pillar.';
     if ('name' in t.params && !(a.name in T.ASSUME)) return 'Unknown assumption.';
+    if ('levers' in t.params && !T.validLeverSet(a.levers)) return 'Unknown or repeated change.';
     return null;
   }
 
@@ -181,6 +190,11 @@
         if (c.field === 'same') return c.value === 0 && fields.every(function (k) { return cm.row(k).diff === 0; }) ? [] : null;
         if (fields.indexOf(c.field) < 0) return null;
         var rw = cm.row(c.field); return rw.diff === c.value ? tokensOf(fnum(Math.abs(c.value), rw.dec)) : null;
+      }
+      case 'combined': {
+        var ce = T.combinedEffect(ctx.input, c.levers); if (!ce) return null;
+        var fieldsOk = ['runBefore', 'runAfter', 'carbonBefore', 'carbonAfter', 'carbonSaved', 'rmSaved', 'comfortDrop', 'scoreBefore', 'scoreAfter', 'additiveCarbon', 'additiveRm'];
+        return fieldsOk.indexOf(c.field) >= 0 && Math.round(ce[c.field]) === c.value ? tokensOf(fnum(Math.abs(c.value), 0)) : null;
       }
       case 'assumption': { var a = T.ASSUME[c.name]; return a ? tokensOf(fnum(a.v, 3) + ' ' + a.note) : null; }
       case 'change': { var lv = T.LEVERS.find(function (l) { return l.key === c.lever; }); return lv ? tokensOf(lv.label) : null; }

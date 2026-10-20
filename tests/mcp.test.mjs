@@ -38,7 +38,10 @@ test('home file: wrong format, no home, arrays, bad JSON, huge and non-text inpu
   for (const bad of ['{not json', '[]', '"x"', 'null', JSON.stringify({ home: HOME }), JSON.stringify({ format: 'other/1', home: HOME }), JSON.stringify({ format: 'terrarium-home/1' }), JSON.stringify({ format: 'terrarium-home/1', home: [] }), JSON.stringify({ format: 'terrarium-home/1', home: 'x' })]) {
     const r = P.parseHomeFile(bad); assert.ok(!r.ok && r.reason.length > 10, bad);
   }
-  assert.ok(!P.parseHomeFile('x'.repeat(P.HOME_MAX_BYTES + 1)).ok); for (const nope of [undefined, null, 42, {}]) assert.ok(!P.parseHomeFile(nope).ok);
+  assert.ok(!P.parseHomeFile('x'.repeat(P.HOME_MAX_BYTES + 1)).ok);
+  const validButHuge = JSON.stringify({ format: 'terrarium-home/1', home: { house: 'condo' }, padding: 'x'.repeat(P.HOME_MAX_BYTES) }), tooBig = P.parseHomeFile(validButHuge);
+  assert.ok(P.parseHomeFile(JSON.stringify({ format: 'terrarium-home/1', home: { house: 'condo' } })).ok && !tooBig.ok && /too large/.test(tooBig.reason), 'a perfectly valid file is refused only for its size');
+  for (const nope of [undefined, null, 42, {}]) assert.ok(!P.parseHomeFile(nope).ok);
 });
 test('home file: the shipped example is a valid home', () => { const r = P.parseHomeFile(fs.readFileSync(EXAMPLE, 'utf8')); assert.ok(r.ok && r.home.house === 'condo' && r.dropped.length === 0); });
 
@@ -80,9 +83,9 @@ test('config: every client explains where the config goes, and the notes warn ab
 });
 
 // ---------- the tools, in process ----------
-test('tools: exactly these seven, every one read-only and non-destructive, each described', async () => {
+test('tools: exactly these eight, every one read-only and non-destructive, each described', async () => {
   const c = await connect(HOME), { tools } = await c.listTools();
-  assert.deepStrictEqual(tools.map((t) => t.name).sort(), ['ask', 'compare_homes', 'first_look', 'list_lots', 'simulate_month', 'what_if', 'where_from']);
+  assert.deepStrictEqual(tools.map((t) => t.name).sort(), ['ask', 'compare_homes', 'first_look', 'list_lots', 'simulate_month', 'what_if', 'what_if_many', 'where_from']);
   for (const t of tools) { assert.strictEqual(t.annotations.readOnlyHint, true, t.name); assert.strictEqual(t.annotations.destructiveHint, false, t.name); assert.strictEqual(t.annotations.openWorldHint, false, t.name); assert.ok(t.description.length > 40, t.name); }
   await c.close();
 });
@@ -169,7 +172,7 @@ test('tools: no tool leaks a file path or anything about the machine', async () 
 });
 test('server: the instructions tell a client to treat illustrative figures as estimates and to quote the checked text', async () => {
   const c = await connect(HOME), ins = c.getInstructions();
-  assert.ok(/ILLUSTRATIVE/.test(ins) && /REAL/.test(ins) && /Checked/.test(ins) && /read-only/.test(ins)); await c.close();
+  assert.ok(/ILLUSTRATIVE/.test(ins) && /REAL/.test(ins) && /Checked/.test(ins) && /read-only/.test(ins)); assert.ok(ins.includes('Only report REAL or SOURCED figures as facts; call ILLUSTRATIVE ones estimates or placeholders.'), 'the grading rule itself, not just the words'); await c.close();
 });
 
 // ---------- the real server process ----------
@@ -188,7 +191,7 @@ test('process: stdout carries only protocol messages, stderr says ready, and too
   await s.wait(() => s.out().split('\n').filter(Boolean).length >= 2);
   const lines = s.out().split('\n').filter(Boolean).map((l) => JSON.parse(l)); s.stop();
   assert.ok(lines.every((m) => m.jsonrpc === '2.0'), 'every stdout line is a JSON-RPC message'); assert.strictEqual(lines[0].result.serverInfo.name, 'terrarium'); assert.ok(/ILLUSTRATIVE/.test(lines[0].result.instructions));
-  assert.strictEqual(lines[1].result.tools.length, 7); assert.ok(/ready \(home file home\.json\)/.test(s.err()) && !s.err().includes(path.dirname(EXAMPLE)), 'stderr names the file but not its directory');
+  assert.strictEqual(lines[1].result.tools.length, 8); assert.ok(/ready \(home file home\.json\)/.test(s.err()) && !s.err().includes(path.dirname(EXAMPLE)), 'stderr names the file but not its directory');
 });
 test('process: the real SDK client over stdio can call a tool on the user\'s file', async () => {
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
@@ -206,7 +209,7 @@ test('process: every bad start fails loudly with exit code 2, a reason on stderr
   const dir = path.join(tmp, 'adir'); fs.mkdirSync(dir);
   const cases = [[[], /no home given/], [['--home'], /--home needs a path/], [['--home', path.join(tmp, 'missing.json')], /cannot read the home file: ENOENT/], [['--home', dir], /not a file/],
     [['--home', write('bad.json', '{nope')], /not valid JSON/], [['--home', write('wrong.json', JSON.stringify({ format: 'x', home: {} }))], /not a Terrarium home file/],
-    [['--home', write('big.json', 'x'.repeat(P.HOME_MAX_BYTES + 10))], /too large/], [['--home', EXAMPLE, '--defaults'], /not both/], [['--bogus'], /unknown argument "--bogus"/], [['--home', EXAMPLE, 'extra'], /unknown argument "extra"/]];
+    [['--home', write('big.json', 'x'.repeat(P.HOME_MAX_BYTES + 10))], /the home file is too large\./], [['--home', EXAMPLE, '--defaults'], /not both/], [['--bogus'], /unknown argument "--bogus"/], [['--home', EXAMPLE, 'extra'], /unknown argument "extra"/]];
   for (const [args, re] of cases) { const r = run(args); assert.strictEqual(r.status, 2, JSON.stringify(args)); assert.ok(re.test(r.stderr), JSON.stringify(args) + ' -> ' + r.stderr); assert.strictEqual(r.stdout, '', 'nothing on stdout: ' + JSON.stringify(args)); }
 });
 test('process: --help exits cleanly and prints the usage to stderr', () => { const r = run(['--help']); assert.strictEqual(r.status, 0); assert.ok(/usage: node mcp\/server\.mjs/.test(r.stderr) && r.stdout === ''); });
@@ -274,4 +277,40 @@ test('regression: over a real stdio session the home line names the file, and ne
   const c = new Client({ name: 'stdio', version: '0' }); await c.connect(new StdioClientTransport({ command: 'node', args: [SERVER, '--home', EXAMPLE] }));
   const t = (await call(c, 'simulate_month')).text, ins = c.getInstructions();
   assert.ok(t.startsWith('Home: Condominium, level 5, lot 6 (the home file home.json)') && ins.includes('from the home file home.json') && !t.includes(path.dirname(EXAMPLE)) && !ins.includes(path.dirname(EXAMPLE))); await c.close();
+});
+
+// ---------- combined changes: the first WorkBuddy session added single effects together and overstated the saving ----------
+test('what_if_many: the exact case WorkBuddy got wrong is now answered by the model, with the overlap stated', async () => {
+  const c = await connect(HOME), r = await call(c, 'what_if_many', { changes: ['solarKwp', 'acHours'] }), input = Object.assign({}, T.DEFAULTS, HOME), e = T.combinedEffect(input, ['solarKwp', 'acHours']);
+  assert.ok(!r.isError && r.text.includes('Checked'));
+  assert.ok(r.text.includes(`from RM ${Math.round(e.runBefore)} to RM ${Math.round(e.runAfter)}`) && r.text.includes(`from ${Math.round(e.carbonBefore)} kg to ${Math.round(e.carbonAfter)} kg`));
+  assert.ok(r.text.includes(`adding the single effects would suggest ${Math.round(e.additiveCarbon)} kg and RM ${Math.round(e.additiveRm)} saved, but together they save ${Math.round(e.carbonSaved)} kg and RM ${Math.round(e.rmSaved)}`));
+  assert.ok(e.carbonSaved < e.additiveCarbon && e.rmSaved < e.additiveRm, 'the combined saving is smaller than the sum, as the overlap says');
+  await c.close();
+});
+test('what_if_many: the order the client names the changes in never matters, and one change equals what_if', async () => {
+  const c = await connect(HOME), a = await call(c, 'what_if_many', { changes: ['solarKwp', 'acHours', 'trees'] }), b = await call(c, 'what_if_many', { changes: ['trees', 'acHours', 'solarKwp'] });
+  assert.strictEqual(a.text, b.text);
+  const one = T.combinedEffect(Object.assign({}, T.DEFAULTS, HOME), ['acHours']), e = A.leverEffect(Object.assign({}, T.DEFAULTS, HOME), 'acHours');
+  assert.ok(Math.abs(one.carbonSaved - e.carbonKg) < 1e-9 && Math.abs(one.rmSaved - e.rm) < 1e-9);
+  await c.close();
+});
+test('what_if_many: empty, repeated, unknown or too many changes are refused, and the schema says so', async () => {
+  const c = await connect(HOME), by = Object.fromEntries((await c.listTools()).tools.map((t) => [t.name, t.inputSchema]));
+  assert.deepStrictEqual(by.what_if_many.properties.changes.items.enum, T.LEVERS.map((l) => l.key)); assert.deepStrictEqual([by.what_if_many.properties.changes.minItems, by.what_if_many.properties.changes.maxItems], [1, T.LEVERS.length]);
+  for (const changes of [[], ['acHours', 'acHours'], ['nonsense'], ['acHours', 'nonsense'], T.LEVERS.map((l) => l.key).concat('acHours'), 'acHours', null]) {
+    let refused = false; try { const r = await c.callTool({ name: 'what_if_many', arguments: { changes } }); refused = !!r.isError; } catch (e) { refused = true; } assert.ok(refused, JSON.stringify(changes));
+  }
+  await c.close();
+});
+test('what_if_many: every combination of changes verifies and never changes the home', async () => {
+  const c = await connect(HOME), before = (await call(c, 'simulate_month')).text, keys = T.LEVERS.map((l) => l.key); let n = 0;
+  for (let m = 1; m < 1 << keys.length; m++) { const set = keys.filter((_, i) => m & (1 << i)), r = await call(c, 'what_if_many', { changes: set }); assert.ok(!r.isError && /Checked \d+ figures/.test(r.text), set.join(',')); n++; }
+  assert.strictEqual(n, 31); assert.strictEqual((await call(c, 'simulate_month')).text, before); await c.close();
+});
+test('what_if_many: the instructions and the descriptions tell the client not to add effects up by hand', async () => {
+  const c = await connect(HOME), ins = c.getInstructions(), tools = (await c.listTools()).tools;
+  assert.ok(/call what_if_many\. Never add single what_if results together yourself/.test(ins) && /the real combined saving is smaller than the sum/.test(ins));
+  assert.ok(/to combine changes use what_if_many; do not add these together/.test(tools.find((t) => t.name === 'what_if').description) && /smaller than the sum of the single effects/.test(tools.find((t) => t.name === 'what_if_many').description));
+  await c.close();
 });

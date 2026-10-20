@@ -8,7 +8,8 @@ An AI assistant that supports MCP (WorkBuddy, Claude Code, Claude Desktop and ot
 |---|---|
 | `first_look` | What a month in the home costs: electricity and bill, the walk to the bus stop, the home score with its strongest and weakest pillar, and the one change that cuts the most carbon |
 | `simulate_month` | Every figure with its grade, the four pillar scores with their formulas, and the home score |
-| `what_if` | The effect of one change: `acHours`, `setpoint`, `walkShare`, `trees` or `solarKwp` |
+| `what_if` | The effect of ONE change: `acHours`, `setpoint`, `walkShare`, `trees` or `solarKwp` |
+| `what_if_many` | Several changes together, computed on the model. The changes overlap, so the saving is smaller than the sum of the single effects, and the answer says by how much |
 | `compare_homes` | The home against an alternative home type, floor or lot with the same habits (lots numbered 1 to 12) |
 | `list_lots` | The twelve lots with their distance to the bus stop |
 | `where_from` | The source and grade of one assumption |
@@ -70,6 +71,8 @@ WorkBuddy connected, called the tools and quoted the figures correctly. Every nu
 - It described a farther lot as "cheaper". The model has no prices; a farther lot costs more to run.
 
 It also multiplied one illustrative month by 12 into a yearly cost, and called the configured home a "default".
+
+A second session showed WorkBuddy's single-change table was entirely right, but it then **added the single savings together** for solar plus less air-con and reported a running cost of about RM 33 and 123 kg of carbon. The model says RM 48 and 136 kg: with less air-con there is less electricity for solar to offset, so the savings overlap. It hedged and offered to confirm, but the tools could only do one change at a time. `what_if_many` closes that gap, and the instructions now tell a client never to add single `what_if` results together.
 
 What changed because of that: the tool output now states every score's direction in numbers ("your carbon is 256 kg against 344 kg for the neighbour household"), states the running cost for the month and what is not modelled, says there are no prices for homes or lots, and the server's instructions name the loaded home and warn against annualising. A client can still reword an answer badly. For anything that matters, read the tool's own text.
 

@@ -21,6 +21,7 @@ const INSTRUCTIONS = [
   'The township layout is a drawing: lot distances are scaled from one real figure and are illustrative. All tools are read-only.',
   'Reading the scores: higher is better. Energy Low Carbon, Community Experience and Urban Biodiversity are measured against a fixed neighbour household, where 50 means the same as the neighbour and ABOVE 50 means better (lower carbon, more trips on foot, more native trees). Climate Resilience is the share of nights kept comfortable. The weakest pillar is only the lowest of the four, not necessarily a bad score.',
   'This model has NO prices for homes, lots or rent. A lot changes only the walk to the bus stop, the car cost and the carbon, and a farther lot costs MORE to run, not less. Do not describe a lot as cheaper or dearer to buy.',
+  'To see several changes together call what_if_many. Never add single what_if results together yourself: the effects overlap (less air-con leaves less for solar to offset), so the real combined saving is smaller than the sum.',
   'The figures are for ONE simulated month. Do not multiply them into a yearly cost as if it were a fact: the weather changes through the year. Only electricity and short car trips are modelled, not rent, a mortgage, water, internet, food, insurance or maintenance.',
 ].join(' ');
 
@@ -62,10 +63,17 @@ export function buildServer(home, opts) {
 
   server.registerTool('what_if', {
     title: 'What if I change one thing',
-    description: 'The effect on carbon, cost and comfort of one change: ' + T.LEVERS.map((l) => l.key + ' (' + l.label + ')').join('; ') + '.',
+    description: 'The effect on carbon, cost and comfort of ONE change (to combine changes use what_if_many; do not add these together): ' + T.LEVERS.map((l) => l.key + ' (' + l.label + ')').join('; ') + '.',
     inputSchema: { change: z.enum(LEVERS) },
     annotations: READ_ONLY,
   }, async ({ change }) => viaAssistant(ctx(), 'what_if', { lever: change }));
+
+  server.registerTool('what_if_many', {
+    title: 'What if I make several changes together',
+    description: 'The combined effect of two or more changes made together, computed on the model, not added up. They overlap (less air-con leaves less for solar to offset), so the combined saving is smaller than the sum of the single effects, and the answer says by how much. Changes: ' + T.LEVERS.map((l) => l.key + ' (' + l.label + ')').join('; ') + '. Each change at most once.',
+    inputSchema: { changes: z.array(z.enum(LEVERS)).min(1).max(LEVERS.length).refine((a) => new Set(a).size === a.length, { message: 'Name each change only once.' }) },
+    annotations: READ_ONLY,
+  }, async ({ changes }) => viaAssistant(ctx(), 'what_if_many', { levers: changes }));
 
   server.registerTool('compare_homes', {
     title: 'Compare your home with an alternative',
