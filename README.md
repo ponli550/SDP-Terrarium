@@ -4,6 +4,8 @@
 
 Terrarium lets a buyer live **one simulated month** in an Elmina home first, and scores it on Sime Darby Property's four sustainability pillars: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.** Built for the Sime Darby Property University Hackathon 2026, *Township of Tomorrow*.
 
+**Try it: https://ponli550.github.io/SDP-Terrarium/** (a static page; your home and sign-in stay in your browser)
+
 ![Elmina in 3D: a condo among its neighbours, the bus stop, and the biodiversity corridor](docs/media/lab.png)
 
 ## Status, plainly
