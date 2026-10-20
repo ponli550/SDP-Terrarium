@@ -138,7 +138,7 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
@@ -160,6 +160,8 @@
   function weekRange(w) { return [w * 7 + 1, w === 3 ? 30 : w * 7 + 7]; }
 
   // ---- heads-up display ----
+  var THROTTLE_HUD = /[?&]throttle\b/.test(location.search);   // screenshot mode normally bypasses the HUD throttle so frames stay deterministic
+  var hudWrites = 0, rebuilds = 0, stressN = 0, lastHudAt = 0;
   function onClock(day, hour) {
     lastClk = { day: day, hour: hour }; if (inspected && Math.floor(hour) !== lastInspHour) { lastInspHour = Math.floor(hour); renderInspect(); }
     var input = currentInput(), d = sim.days[day - 1] || sim.days[29];
@@ -167,12 +169,15 @@
     for (var i = 0; i < day - 1; i++) before += sim.days[i].netKwh;
     var mtd = before + kwhToday, trips = T.tripsUpTo(day, input), wx = T.weatherAt(day, hour, input);
     var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
-    $('hudClock').innerHTML = '<b>Day ' + day + ' &middot; ' + ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2) + '</b><br><span class="wx ' + wx.label.split(' ')[0] + '">' + wx.label + ' &middot; ' + wx.temp.toFixed(0) + ' C</span>';
-    $('hudFigs').innerHTML =
+    // the clock moves every frame but the text only needs to change about ten times a second
+    var nowMs = performance.now(); if (scene && (!SHOT || THROTTLE_HUD) && nowMs - lastHudAt < 100) return; lastHudAt = nowMs;
+    var clockHtml = '<b>Day ' + day + ' &middot; ' + ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2) + '</b><br><span class="wx ' + wx.label.split(' ')[0] + '">' + wx.label + ' &middot; ' + wx.temp.toFixed(0) + ' C</span>';
+    var figsHtml =
       '<div><small>Electricity today</small><b>' + kwhToday.toFixed(1) + ' kWh</b></div>' +
       '<div><small>Month so far</small><b>' + mtd.toFixed(0) + ' kWh</b></div>' +
       '<div><small>Home carbon so far</small><b>' + (mtd * T.ASSUME.gridKgKwh.v).toFixed(0) + ' kg</b></div>' +
       '<div><small>Trips on foot / by car</small><b>' + trips.walk + ' / ' + trips.car + '</b></div>';
+    $('hudClock').innerHTML = clockHtml; $('hudFigs').innerHTML = figsHtml; hudWrites += 2;
     if (day !== clockDay) { clockDay = day; chart(sim.days); }
   }
 
@@ -326,6 +331,7 @@
   render();
   if (SHOT) { session = Object.assign({ guest: true, setUp: true }, store.guest()); $('gate').hidden = true; showChip(); }   // screenshot mode keeps the URL's presets
   else { var cur = store.current(); if (cur) startSession(cur); else showGate(); }
+  if (SHOT && q0.has('stress')) stressN = +q0.get('stress');   // rebuild the homes many times, a few frames apart so each build is really drawn
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
   if (SHOT && q0.has('wizard')) openWizard();
@@ -339,5 +345,5 @@
   else if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(+(new URLSearchParams(location.search).get('day') || 1), +(new URLSearchParams(location.search).get('hour') || 6)); scene.play();
     if (q0.has('shot') && q0.has('inspect')) scene.select(q0.get('inspect'));
     if (q0.has('shot') && q0.has('follow')) { scene.follow(true); $('follow').textContent = 'Stop following'; $('follow').classList.add('on'); } }
-  window.__terrarium = { inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
+  window.__terrarium = { hudWrites: function () { return hudWrites; }, inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
 })();

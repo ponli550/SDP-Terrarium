@@ -52,6 +52,15 @@ h = dump('firstlook=1&lot=5&frames=4'); ui = JSON.parse(attr(h, 'ui')); ok(ui.fi
 h = dump('frames=4'); ui = JSON.parse(attr(h, 'ui'));
 ok(ui.gate === 'none' && ui.wizard === 'none' && ui.firstLook === 'none' && ui.compare === 'none' && ui.inspect === 'none' && ui.skip === 'none' && ui.chip !== 'none', 'in normal use nothing is drawn that should be hidden (inspect ' + ui.inspect + ', skip ' + ui.skip + ')');
 
+// render hygiene, from measurements: removed meshes are disposed (about 108 geometries leaked per home rebuild before), trips do not leak, and the HUD is not rewritten every frame
+const geoms = (q) => JSON.parse(attr(dump(q), 'state')).perf.geometries, hud = (q) => JSON.parse(attr(dump(q), 'state')).extra.hudWrites;
+const g0 = geoms('frames=120'), g12 = geoms('stress=12&frames=120'), g48 = geoms('stress=48&frames=280');
+ok(g0 > 400 && g0 < 1000, 'the scene holds a sensible number of geometries at rest (' + g0 + ')');
+ok(g48 < g0 + 150 && Math.abs(g48 - g12) < 150, 'rebuilding the homes 48 times does not grow GPU memory (rest ' + g0 + ', after 12 rebuilds ' + g12 + ', after 48 ' + g48 + '; it was 678, 1873 and 5847 before the fix)');
+const t30 = geoms('walk=0.5&frames=30&day=1&hour=6'), t1800 = geoms('walk=0.5&frames=1800&day=1&hour=6');
+ok(t1800 < t30 + 40, 'walkers and cars coming and going do not leak (' + t30 + ' at the start, ' + t1800 + ' after 1800 frames)');
+ok(hud('throttle=1&frames=120') <= 20 && hud('frames=120') > 100, 'the HUD is rewritten about ten times a second, not every frame (' + hud('throttle=1&frames=120') + ' writes in 120 frames, against ' + hud('frames=120') + ' unthrottled)');
+
 // placing your lot: a real pointer click on a pad moves the home, and only while placing
 h = dump('place=1&clicklot=5&frames=40&day=1&hour=12'); let pl = JSON.parse(attr(h, 'state'));
 ok(pl.neighbours === 11 && pl.neighAtHome === 0, 'after the home moves, the neighbours are rebuilt around its new lot (' + pl.neighbours + ' neighbours, ' + pl.neighAtHome + ' on it)');
