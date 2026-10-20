@@ -49,7 +49,7 @@ One simulation sets the bill, the carbon and the comfort, so what you see is wha
 ## Pull your home apart
 
 ![Your home lifted floor by floor over the ground beneath it, your floor marked](docs/media/exploded.png)
-Exploded view: your floors lift apart and your unit is marked. **The ground layers below (topsoil, subsoil, rock, groundwater) are a drawing; the model has no soil or water.**
+Exploded view: your floors lift apart and your unit is marked. Studio view shows your home alone on a turntable. **The ground layers below (topsoil, subsoil, rock, groundwater) are a drawing; the model has no soil or water.**
 
 ## Why it fits Sime Darby Property
 
@@ -65,7 +65,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (187 automated tests), the 3D township with an exploded view, the weekly game, and 227 page checks. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+A working prototype in the browser: a tested model (187 automated tests), the 3D township with an exploded view, the weekly game, 228 page checks and 75 checks in a real browser. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
 **Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 

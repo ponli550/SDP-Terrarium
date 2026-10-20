@@ -83,7 +83,8 @@ ok(g0 > 400 && g0 < 1000, 'the scene holds a sensible number of geometries at re
 ok(g48 < g0 + 150 && Math.abs(g48 - g12) < 150, 'rebuilding the homes 48 times does not grow GPU memory (rest ' + g0 + ', after 12 rebuilds ' + g12 + ', after 48 ' + g48 + '; it was 678, 1873 and 5847 before the fix)');
 const t30 = geoms('walk=0.5&frames=30&day=1&hour=6'), t1800 = geoms('walk=0.5&frames=1800&day=1&hour=6');
 ok(t1800 < t30 + 40, 'walkers and cars coming and going do not leak (' + t30 + ' at the start, ' + t1800 + ' after 1800 frames)');
-ok(hud('throttle=1&frames=120') <= 20 && hud('frames=120') > 100, 'the HUD is rewritten about ten times a second, not every frame (' + hud('throttle=1&frames=120') + ' writes in 120 frames, against ' + hud('frames=120') + ' unthrottled)');
+const hudT = hud('throttle=1&frames=120'), hudU = hud('frames=120');   // relative, because test-mode frames are timer-driven and their spacing is not a real 60 fps
+ok(hudU > 100 && hudT * 5 < hudU, 'the HUD is rewritten far less often than every frame, about ten times a second (' + hudT + ' writes in 120 frames, against ' + hudU + ' unthrottled)');
 
 // placing your lot: a real pointer click on a pad moves the home, and only while placing
 h = dump('place=1&clicklot=5&frames=40&day=1&hour=12'); let pl = JSON.parse(attr(h, 'state'));
@@ -118,16 +119,24 @@ ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in wee
 const RM = ['--force-prefers-reduced-motion'];
 const viewOf = (q, extra) => { const hh = dump(q, extra); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
 let vm = viewOf('house=condo&level=5&lot=0&frames=60');
-ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
+ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true/false', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
 vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === [0, 5, 10, 15, 20, 25, 30, 35].join() && vm.view.roofY === 40 && vm.view.panelsY === 40, 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
-ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
+ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
 ok(vm.view.selfShade === false, 'Exploded: the pulled-apart floors stop shading each other');
 ok(vm.view.ground.shown === true && vm.view.ground.world === true && vm.view.ground.layers === 4 && vm.view.ground.y.join() === [0, -4, -8, -12].join() && vm.view.ground.labels === 5, 'Exploded: the cutaway earth is shown and its four layers (topsoil, subsoil, rock, groundwater) drop one gap each, with their labels and the drawn-not-modelled note (' + vm.view.ground.y.join() + ', ' + vm.view.ground.labels + ' labels)');
 vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.ground.hidden > 20, 'Exploded: the township is put away (' + vm.view.ground.hidden + ' objects hidden)');
 vm = viewOf('house=condo&level=5&lot=0&frames=20&mode=exploded&modelater=8', RM);
-ok(vm.view.mode === 'lab' && vm.view.ground.hidden === 0 && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.neighbours === true && vm.view.ground.labels === 0 && vm.view.floorY.every((y) => y === 0), 'back to Lab: everything that was put away is drawn again, the earth block and its labels are gone, the floors rest (' + vm.view.ground.hidden + ' still hidden)');
+ok(vm.view.mode === 'lab' && vm.view.ground.hidden === 0 && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.neighbours === true && vm.view.ground.labels === 0 && vm.view.studio.turntable === false && vm.view.studio.marker === true && vm.view.floorY.every((y) => y === 0), 'back to Lab: everything that was put away is drawn again, the earth block and its labels are gone, the floors rest (' + vm.view.ground.hidden + ' still hidden)');
+vm = viewOf('house=condo&level=5&lot=0&frames=40&mode=studio');
+ok(vm.view.mode === 'studio' && vm.view.studio.on && vm.view.studio.turntable === true && vm.view.studio.bg === '0e1624' && vm.view.studio.marker === false && vm.view.studio.markerLabel === false && vm.ui.viewBtn === 'false/false/true', 'Studio: a dark backdrop and a turntable, the location marker is put away, Studio is pressed (bg ' + vm.view.studio.bg + ')');
+ok(vm.view.neighbours === false && vm.view.ground.shown === false && vm.view.ground.labels === 0 && vm.view.ground.hidden > 20 && vm.view.floorY.every((y) => y === 0) && vm.view.explode === 0, 'Studio: your home is alone, whole and unexploded, with no ground cutaway (' + vm.view.ground.hidden + ' objects put away)');
+ok(vm.view.studio.rotating === true && vm.view.studio.rotated > 0.005, 'Studio: the camera turns slowly around the home (' + vm.view.studio.rotated + ' rad in 40 frames)');
+vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=studio', RM);
+ok(vm.view.studio.rotating === false && vm.view.studio.rotated === 0, 'Studio: under reduced motion nothing turns');
+vm = viewOf('house=condo&level=5&lot=0&frames=24&mode=studio&modelater=8');
+ok(vm.view.mode === 'lab' && vm.view.studio.turntable === false && vm.view.studio.rotating === false && vm.view.studio.marker === true && vm.view.studio.markerLabel === true && vm.view.studio.bg !== '0e1624' && vm.view.ground.hidden === 0 && vm.view.neighbours === true, 'Studio back to Lab: the township, the marker and the sky return, the turntable and the turning stop');
 vm = viewOf('house=terrace&lot=3&frames=12&mode=exploded', RM);
 ok(vm.view.floors === 2 && vm.view.floorY.join() === '0,4' && vm.view.unitFloor === -1 && vm.view.unitLabelShown === false, 'a terrace explodes into its two storeys and has no unit floor to point at');
 vm = viewOf('house=condo&level=2&lot=0&frames=12&mode=exploded', RM);

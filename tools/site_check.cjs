@@ -328,6 +328,7 @@ setT('mcpServer', '  ' + SRV + '\n'); setT('mcpHome', ' ' + HOMEF + ' '); ok(JSO
 ok($('mcpOut').querySelectorAll('i, a, img, script').length === 0 && $('mcpOut').querySelector('b').textContent === MC.configFor('workbuddy', { serverPath: SRV, homePath: HOMEF }).title, 'the title is plain text');
 $('mcpClient').value = 'workbuddy'; T0.go('map'); ok(!shown('viewAnalysis'), 'and the card goes with the page');
 ok($('viewLab').getAttribute('aria-pressed') === 'true' && $('viewExploded').getAttribute('aria-pressed') === 'false' && $('viewLab').classList.contains('on') && $('viewExploded').textContent === 'Exploded' && inside('viewExploded', '#viewMap'), 'the Map offers Lab (pressed) and Exploded');
+ok($('viewStudio').getAttribute('aria-pressed') === 'false' && $('viewStudio').textContent === 'Studio' && inside('viewStudio', '#viewMap'), 'the Map also offers Studio');
 $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') === 'false', 'without WebGL the switch does nothing and does not throw');
 T0.go('map');
 console.log('site checks passed:', n);
