@@ -9,4 +9,4 @@ let out = '', done = false;
 const finish = () => { if (done) return; done = true; clearTimeout(t); c.kill('SIGKILL'); process.stdout.write(out, () => process.exit(0)); };
 const t = setTimeout(finish, 120000);
 c.stdout.on('data', (d) => { out += d; if (/<\/html>\s*$/.test(out)) setTimeout(finish, 100); });
-c.on('exit', finish);
+c.on('close', finish);
