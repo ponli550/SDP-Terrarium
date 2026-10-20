@@ -7,8 +7,8 @@ if (!fs.existsSync(CHROME)) { console.log('browser checks skipped: no Chrome at 
 const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => fs.rmSync(PROFILE, { recursive: true, force: true }));
 const page = 'file://' + path.join(__dirname, '..', 'site', 'index.html');
 // Each run gets its own profile: with a normal Chrome already open, a headless launch on the default profile hands off to it and returns un-run HTML.
-// A dump with no scene state at all means Chrome did not finish (a launch problem), so it is retried once. A failed assertion is never retried.
-const dump = (query, extra) => { const h = dumpOnce(query, extra); return (/data-state=/.test(h) && /data-ui=/.test(h)) || !/frames=/.test(query) ? h : dumpOnce(query, extra); };
+// A dump with no scene state at all means Chrome did not finish (a launch problem), so it is retried (up to eight more times; headless Chrome intermittently returns the un-run page). A failed assertion is never retried.
+const dump = (query, extra) => { let h = dumpOnce(query, extra); for (let i = 0; i < 8 && /frames=/.test(query) && !(/data-state=/.test(h) && /data-ui=/.test(h)); i++) h = dumpOnce(query, extra); return h; };
 const dumpOnce = (query, extra) => spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, page + '?shot&' + query].concat(extra || []), { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || '';
 const attr = (h, name) => { const m = h.match(new RegExp('data-' + name + '="([^"]*)"')); return m ? m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&') : null; };
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
@@ -114,15 +114,22 @@ h = dump('picks=lot&frames=12'); ok(JSON.parse(attr(h, 'picks')).lot === 'absent
 h = dump('autoweek=1&speed=8&walk=0.5&frames=450');
 ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in week plays to its end and opens round 2 with its event');
 // view modes: Lab at rest, Exploded pulls your own home's floors apart
-const viewOf = (q) => { const hh = dump(q); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
+// exploded runs use reduced motion so the explode snaps (a few frames suffice; with the township hidden, headless Chrome sometimes stalls its frame loop on a long run)
+const RM = ['--force-prefers-reduced-motion'];
+const viewOf = (q, extra) => { const hh = dump(q, extra); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
 let vm = viewOf('house=condo&level=5&lot=0&frames=60');
-ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.ui.viewBtn === 'false/true', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
-vm = viewOf('house=condo&level=5&lot=0&frames=90&mode=exploded');
+ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
+vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === [0, 5, 10, 15, 20, 25, 30, 35].join() && vm.view.roofY === 40 && vm.view.panelsY === 40, 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
 ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
 ok(vm.view.selfShade === false, 'Exploded: the pulled-apart floors stop shading each other');
-vm = viewOf('house=terrace&lot=3&frames=90&mode=exploded');
+ok(vm.view.ground.shown === true && vm.view.ground.world === true && vm.view.ground.layers === 4 && vm.view.ground.y.join() === [0, -4, -8, -12].join() && vm.view.ground.labels === 5, 'Exploded: the cutaway earth is shown and its four layers (topsoil, subsoil, rock, groundwater) drop one gap each, with their labels and the drawn-not-modelled note (' + vm.view.ground.y.join() + ', ' + vm.view.ground.labels + ' labels)');
+vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
+ok(vm.view.ground.hidden > 20, 'Exploded: the township is put away (' + vm.view.ground.hidden + ' objects hidden)');
+vm = viewOf('house=condo&level=5&lot=0&frames=20&mode=exploded&modelater=8', RM);
+ok(vm.view.mode === 'lab' && vm.view.ground.hidden === 0 && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.neighbours === true && vm.view.ground.labels === 0 && vm.view.floorY.every((y) => y === 0), 'back to Lab: everything that was put away is drawn again, the earth block and its labels are gone, the floors rest (' + vm.view.ground.hidden + ' still hidden)');
+vm = viewOf('house=terrace&lot=3&frames=12&mode=exploded', RM);
 ok(vm.view.floors === 2 && vm.view.floorY.join() === '0,4' && vm.view.unitFloor === -1 && vm.view.unitLabelShown === false, 'a terrace explodes into its two storeys and has no unit floor to point at');
-vm = viewOf('house=condo&level=2&lot=0&frames=90&mode=exploded');
+vm = viewOf('house=condo&level=2&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.unitFloor === 1, 'the highlighted floor follows the level you chose (level 2 is floor index ' + vm.view.unitFloor + ')');
 console.log('browser checks passed:', n);

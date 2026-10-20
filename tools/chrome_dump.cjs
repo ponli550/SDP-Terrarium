@@ -3,7 +3,7 @@
 // Usage: node chrome_dump.cjs <chrome> <profileDir> <url> [extra chrome flags...]
 const { spawn } = require('child_process');
 const [chrome, profile, url, ...extra] = process.argv.slice(2);
-const args = ['--headless=new', ...extra, '--disable-gpu', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1000,700', '--user-data-dir=' + profile, '--virtual-time-budget=30000', '--dump-dom', url];
+const args = ['--headless=new', ...extra, '--disable-gpu', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1000,700', '--user-data-dir=' + profile, '--virtual-time-budget=6000000', '--dump-dom', url];
 const c = spawn(chrome, args, { stdio: ['ignore', 'pipe', 'ignore'] });
 let out = '', done = false;
 const finish = () => { if (done) return; done = true; clearTimeout(t); c.kill('SIGKILL'); process.stdout.write(out, () => process.exit(0)); };

@@ -26,7 +26,7 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 2. **See your first look**: a checked summary of what a month in this home costs, with one next action.
 3. **Compare** another home type, floor or lot side by side.
 4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home).
-5. **Switch to Exploded** to pull your home apart floor by floor and see which one is yours.
+5. **Switch to Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
 6. **Open Analysis** for the scores against a neighbour, the month chart, every figure with its grade, and **what to change** for the biggest cut.
 7. **After handover**, type the kWh from your real bill and the model matches itself to it.
 
