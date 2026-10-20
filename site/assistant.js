@@ -14,7 +14,7 @@
   var REFUSAL = 'I can only answer from this home\'s simulated month, and I have no way to answer that. Try one of the example questions.';
   var SHOWN = ['monthKwh', 'monthBill', 'carbonKg', 'carRm', 'walkMin', 'comfortPct', 'solarKwh'];
   var UNIT = { monthKwh: 'kWh', monthBill: 'RM', carbonKg: 'kg', carRm: 'RM', walkMin: 'minutes', comfortPct: '%', solarKwh: 'kWh' };
-  var EXAMPLES = ['Give me the briefing', 'Where does the carbon number come from?', 'How do I compare with my neighbours?', 'What should I change first?', 'What if I run the air-con 2 hours less?', 'Why is my energy score what it is?', 'How far is the bus stop?'];
+  var EXAMPLES = ['What would living here cost me?', 'Give me the briefing', 'Where does the carbon number come from?', 'How do I compare with my neighbours?', 'What should I change first?', 'What if I run the air-con 2 hours less?', 'Why is my energy score what it is?', 'How far is the bus stop?'];
 
   var scoresOf = function (ctx) { return ctx._s || (ctx._s = T.scores(ctx.input)); };
   function leverEffect(input, key) {
@@ -25,6 +25,24 @@
 
   // ---- tools: read-only except propose_change, which only drafts a card ----
   var TOOLS = {
+    first_look: { kind: 'read', describe: 'What a month in this home would cost, in plain words, from the first screen after set-up.', params: {}, run: function (a, ctx, b) {
+      var S = scoresOf(ctx), f = S.you.figures, inp = ctx.input, house = T.HOUSES[inp.house] || T.HOUSES.terrace, li = T.lotInfo(inp.lot);
+      var lvl = inp.house === 'condo' ? Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(inp.level) || 1))) : null;
+      var k = b.cl({ kind: 'figure', key: 'monthKwh', value: Math.round(f.monthKwh.value) }), r = b.cl({ kind: 'figure', key: 'monthBill', value: Math.round(f.monthBill.value) });
+      var where = '';
+      if (li) where += ' on lot ' + fg(b.cl({ kind: 'lot', field: 'n', value: li.n }), String(li.n));
+      if (lvl !== null) where += (li ? ', ' : ' ') + 'level ' + fg(b.cl({ kind: 'level', value: lvl }), String(lvl));
+      b.text.push('Living in this home, a ' + nm(house.label) + where + ', would use about ' + fg(k, fnum(f.monthKwh.value, 0)) + ' kWh a month, an electricity bill of about RM ' + fg(r, fnum(f.monthBill.value, 0)) + '.');
+      if (li) b.text.push('The bus stop is about ' + fg(b.cl({ kind: 'lot', field: 'km', value: Math.round(li.km * 100) / 100 }), fnum(li.km, 2)) + ' km from your lot, around ' + fg(b.cl({ kind: 'lot', field: 'walkMin', value: Math.round(li.walkMin) }), String(Math.round(li.walkMin))) + ' minutes on foot each way.');
+      else b.text.push('You have not placed a lot yet. The bus stop is about ' + fg(b.cl({ kind: 'assumption', name: 'stopKm' }), fnum(T.ASSUME.stopKm.v, 3)) + ' km from the township centre.');
+      var tot = b.cl({ kind: 'total', value: Math.round(S.total) }), hi = S.pillars.reduce(function (m, p) { return p.score > m.score ? p : m; }), lo = S.pillars.reduce(function (m, p) { return p.score < m.score ? p : m; });
+      var hc = b.cl({ kind: 'pillarExtreme', key: hi.key, which: 'max' }), lc = b.cl({ kind: 'pillarExtreme', key: lo.key, which: 'min' });
+      b.text.push('You score ' + fg(tot, fnum(S.total, 0)) + ' out of one hundred against SDP\'s four pillars. Strongest: ' + nm(hi.name) + '. Weakest: ' + nm(lo.name) + '.');
+      var top = T.suggest(inp, 1)[0];
+      if (top) b.text.push('The change that cuts the most carbon without costing comfort: ' + nm(top.label) + ', about ' + fg(b.cl({ kind: 'lever', lever: top.key, field: 'carbonKg', value: Math.round(top.carbonKg) }), fnum(top.carbonKg, 0)) + ' kg a month.');
+      else b.text.push('No single change cuts carbon without costing comfort: that is ' + fg(b.cl({ kind: 'count', what: 'suggestions', value: 0 }), '0') + ' changes to suggest.');
+      b.text.push(f.monthKwh.grade === 'REAL' ? 'The electricity figure is matched to your own bill; every other figure is illustrative.' : 'Every figure here is illustrative until you enter a real bill.');
+    } },
     briefing: { kind: 'read', describe: 'The month in plain words: use, bill, carbon, home score.', params: {}, run: function (a, ctx, b) {
       var S = scoresOf(ctx), f = S.you.figures;
       var k = b.cl({ kind: 'figure', key: 'monthKwh', value: Math.round(f.monthKwh.value) }), r = b.cl({ kind: 'figure', key: 'monthBill', value: Math.round(f.monthBill.value) });
@@ -96,6 +114,7 @@
     else if (/walk|on foot/.test(q) && !/score/.test(q)) lever = 'walkShare';
     else if (/tree|plant/.test(q)) lever = 'trees';
     else if (/solar|panel/.test(q)) lever = 'solarKwp';
+    if (/first look|what would living|cost me to live|living here|my month in this home/.test(q)) return { intent: 'firstlook', calls: [{ tool: 'first_look', args: {} }] };
     if (/(apply|do it|go ahead|make that change|confirm)/.test(q)) return { intent: 'propose', calls: [{ tool: 'propose_change', args: { lever: lever || (T.suggest(ctx.input, 1)[0] || {}).key || 'acHours' } }] };
     if (lever && /(what if|if i|should i|would|how much|effect|save)/.test(q)) return { intent: 'whatif', calls: [{ tool: 'what_if', args: { lever: lever } }] };
     if (/bus|stop|transit|how far/.test(q)) return { intent: 'stop', calls: [{ tool: 'where_from', args: { name: 'stopKm' } }] };
@@ -135,7 +154,9 @@
       case 'total': return Math.round(S.total) === c.value ? tokensOf(fnum(S.total, 0)) : null;
       case 'formula': { var q = S.pillars.find(function (x) { return x.key === c.key; }); return q ? tokensOf(q.formula) : null; }
       case 'lever': { var e = leverEffect(ctx.input, c.lever); if (!e || ['carbonKg', 'rm', 'comfortDrop'].indexOf(c.field) < 0) return null; var v = c.field === 'rm' && c.value === 0 && e.rm < 0 ? 0 : e[c.field]; return Math.round(v) === c.value ? tokensOf(fnum(Math.abs(c.value), 0)) : null; }
-      case 'lot': { var lt = T.lotInfo(ctx.input.lot); if (!lt) return null; return c.field === 'n' && lt.n === c.value ? [String(lt.n)] : c.field === 'km' && Math.round(lt.km * 100) / 100 === c.value ? tokensOf(fnum(lt.km, 2)) : null; }
+      case 'lot': { var lt = T.lotInfo(ctx.input.lot); if (!lt) return null; return c.field === 'n' && lt.n === c.value ? [String(lt.n)] : c.field === 'km' && Math.round(lt.km * 100) / 100 === c.value ? tokensOf(fnum(lt.km, 2)) : c.field === 'walkMin' && Math.round(lt.walkMin) === c.value ? [String(c.value)] : null; }
+      case 'level': { if (ctx.input.house !== 'condo') return null; var lv = Math.min(T.CONDO_LEVELS, Math.max(1, Math.round(Number(ctx.input.level) || 1))); return lv === c.value ? [String(lv)] : null; }
+      case 'pillarExtreme': { var ps = S.pillars; var best = ps.reduce(function (m, p) { return (c.which === 'max' ? p.score > m.score : p.score < m.score) ? p : m; }); return (c.which === 'max' || c.which === 'min') && best.key === c.key ? [] : null; }
       case 'assumption': { var a = T.ASSUME[c.name]; return a ? tokensOf(fnum(a.v, 3) + ' ' + a.note) : null; }
       case 'change': { var lv = T.LEVERS.find(function (l) { return l.key === c.lever; }); return lv ? tokensOf(lv.label) : null; }
       case 'count': return c.what === 'suggestions' && T.suggest(ctx.input, 5).length === c.value ? [String(c.value)] : null;
@@ -157,6 +178,7 @@
   function verifyAnswer(ans, ctx) {
     var problems = [], allowed = ans.claims.map(function (c, i) { var t = claimTokens(c, ctx); if (t === null) problems.push('Claim ' + (i + 1) + ' (' + (c && c.kind) + ') is not supported by the model.'); return t; });
     var known = {}; scoresOf(ctx).pillars.forEach(function (p) { known[p.name] = 1; }); T.LEVERS.forEach(function (l) { known[l.label] = 1; });
+    Object.keys(T.HOUSES).forEach(function (h) { known[T.HOUSES[h].label] = 1; });
     Object.keys(scoresOf(ctx).you.figures).forEach(function (k) { known[scoresOf(ctx).you.figures[k].label] = 1; });
     var text = ans.text.join('\n'), m;
     (text.match(/⟦[^⟧]*⟧/g) || []).forEach(function (x) { if (!known[x.slice(1, -1)]) problems.push('Unknown name ' + x.slice(1, -1) + '.'); });

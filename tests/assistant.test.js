@@ -128,3 +128,62 @@ test('verifier: a lot claim with a false number is withheld, a true one passes',
   assert.ok(!A.ask('x', c, mk('km', Math.round(li.km * 100) / 100)).withheld); assert.ok(!A.ask('x', c, mk('n', 6)).withheld);
   assert.ok(A.ask('x', { input: Object.assign({}, T.DEFAULTS) }, mk('n', 6)).withheld, 'no lot means no lot claim can hold');
 });
+
+// ---- first look ----
+const FL = 'what would living here cost me?';
+const flOf = (o) => ({ input: Object.assign({}, T.DEFAULTS, o) });
+test('first look: verified for a house, a placed lot, a condo on a floor, and a matched bill, with the model\'s own numbers', () => {
+  for (const o of [{}, { lot: 5 }, { house: 'condo', level: 8, lot: 3, trees: 6 }, { house: 'semid', lot: 0, solarKwp: 3 }, (() => { const c = T.calibrate(T.DEFAULTS, 700); return { baseScale: c.baseScale, billKwh: 700 }; })()]) {
+    const c = flOf(o), r = A.ask(FL, c), t = words(r), S = T.scores(c.input), f = S.you.figures;
+    assert.ok(!r.withheld && r.checked >= 7, JSON.stringify(o) + ' ' + (r.problems || []).join(';'));
+    assert.ok(t.includes(Math.round(f.monthKwh.value) + ' kWh a month') && t.includes('RM ' + Math.round(f.monthBill.value)) && t.includes('You score ' + Math.round(S.total) + ' out of one hundred'), JSON.stringify(o));
+    assert.ok(!/[⦃⦄⟦⟧]/.test(t) && !/undefined|NaN/.test(t));
+  }
+});
+test('first look: the lot, the floor and the walk to the stop are stated for a placed lot, and the real centre distance when none is placed', () => {
+  const li = T.lotInfo(3), t = words(A.ask(FL, flOf({ house: 'condo', level: 8, lot: 3 })));
+  assert.ok(t.includes('Condominium on lot 4, level 8') && t.includes('about ' + Math.round(li.km * 100) / 100 + ' km from your lot, around ' + Math.round(li.walkMin) + ' minutes on foot'));
+  const none = words(A.ask(FL, flOf({}))); assert.ok(none.includes('You have not placed a lot yet') && none.includes('0.93 km from the township centre') && !none.includes('on lot'));
+  assert.ok(!words(A.ask(FL, flOf({ house: 'terrace', lot: 2, level: 8 }))).includes('level'), 'a house is never given a level');
+});
+test('first look: the strongest and weakest pillars named are the model\'s own', () => {
+  for (const o of [{}, { lot: 1 }, { acHours: 0 }, { trees: 10, nativeShare: 1 }, { walkShare: 1, lot: 5 }]) {
+    const c = flOf(o), ps = T.scores(c.input).pillars, t = words(A.ask(FL, c));
+    const hi = ps.reduce((m, p) => (p.score > m.score ? p : m)), lo = ps.reduce((m, p) => (p.score < m.score ? p : m));
+    assert.ok(t.includes('Strongest: ' + hi.name + '. Weakest: ' + lo.name + '.'), JSON.stringify(o));
+  }
+});
+test('first look: names the change that cuts the most carbon, or says there is none', () => {
+  const c = flOf({ acHours: 10, setpoint: 22 }), top = T.suggest(c.input, 1)[0];
+  assert.ok(words(A.ask(FL, c)).includes(top.label + ', about ' + Math.round(top.carbonKg) + ' kg a month'));
+  const none = flOf({ acHours: 4, setpoint: 28, walkShare: 1, solarKwp: 8, trees: 10, nativeShare: 1, house: 'terrace' }), n = T.suggest(none.input, 1);
+  if (!n.length) assert.ok(/that is 0 changes to suggest/.test(words(A.ask(FL, none))));
+});
+test('first look: says the electricity figure is your own bill once matched, and illustrative otherwise', () => {
+  const c = T.calibrate(T.DEFAULTS, 700), billed = flOf({ baseScale: c.baseScale, billKwh: 700 });
+  assert.ok(words(A.ask(FL, billed)).includes('matched to your own bill') && words(A.ask(FL, billed)).includes('700 kWh a month'));
+  assert.ok(words(A.ask(FL, flOf({}))).includes('illustrative until you enter a real bill'));
+});
+test('first look: the question is understood in several phrasings and nothing else is hijacked', () => {
+  for (const q of ['What would living here cost me?', 'first look', 'what does living here cost', 'my month in this home']) assert.strictEqual(A.rulePlanner(q, flOf({})).calls[0].tool, 'first_look', q);
+  assert.strictEqual(A.rulePlanner('give me the briefing', flOf({})).calls[0].tool, 'briefing');
+  assert.strictEqual(A.rulePlanner('where does the carbon number come from?', flOf({})).calls[0].tool, 'where_from');
+  assert.strictEqual(A.rulePlanner('how far is the bus stop?', flOf({})).calls[0].tool, 'where_from');
+});
+test('verifier: a wrong strongest or weakest pillar is withheld, and the right one passes', () => {
+  const c = flOf({}), ps = T.scores(c.input).pillars, hi = ps.reduce((m, p) => (p.score > m.score ? p : m)), lo = ps.reduce((m, p) => (p.score < m.score ? p : m));
+  const wrong = ps.find((p) => p.key !== hi.key && p.key !== lo.key);
+  assert.ok(A.ask('x', c, () => base(['Strongest is ⟦' + wrong.name + '⟧.'], [{ kind: 'pillarExtreme', key: wrong.key, which: 'max' }])).withheld);
+  assert.ok(A.ask('x', c, () => base(['Weakest is ⟦' + hi.name + '⟧.'], [{ kind: 'pillarExtreme', key: hi.key, which: 'min' }])).withheld);
+  assert.ok(!A.ask('x', c, () => base(['Strongest is ⟦' + hi.name + '⟧.'], [{ kind: 'pillarExtreme', key: hi.key, which: 'max' }])).withheld);
+  assert.ok(A.ask('x', c, () => base(['x'], [{ kind: 'pillarExtreme', key: hi.key, which: 'median' }])).withheld);
+  assert.ok(A.ask('x', c, () => base(['x'], [{ kind: 'pillarExtreme', key: lo.key, which: 'median' }])).withheld, 'a made-up "which" is refused even when the key happens to be the weakest');
+  assert.ok(A.ask('x', c, () => base(['x'], [{ kind: 'pillarExtreme', key: lo.key }])).withheld, 'and so is a missing one');
+});
+test('verifier: a level claim holds only for a condo and only for its own floor; a walking-minutes claim only for the real value', () => {
+  const condoC = flOf({ house: 'condo', level: 5, lot: 2 }), houseC = flOf({ house: 'terrace', level: 5, lot: 2 }), li = T.lotInfo(2);
+  const lv = (v) => () => base(['It is on level ' + f(0, String(v)) + '.'], [{ kind: 'level', value: v }]);
+  assert.ok(!A.ask('x', condoC, lv(5)).withheld && A.ask('x', condoC, lv(4)).withheld && A.ask('x', houseC, lv(5)).withheld);
+  const wm = (v) => () => base(['About ' + f(0, String(v)) + ' minutes.'], [{ kind: 'lot', field: 'walkMin', value: v }]);
+  assert.ok(!A.ask('x', condoC, wm(Math.round(li.walkMin))).withheld && A.ask('x', condoC, wm(Math.round(li.walkMin) + 9)).withheld);
+});
