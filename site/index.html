@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Terrarium Elmina</title>
 <style>
-[hidden]{display:none!important}   /* one rule so no display style can ever beat the hidden attribute */
+[hidden]{display:none!important}
+#shotimg{display:none}   /* test mode only: the screenshot is read from the DOM, not shown */   /* one rule so no display style can ever beat the hidden attribute */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .tabs{display:flex;gap:4px}.tabs a{padding:6px 14px;border-radius:99px;text-decoration:none;color:var(--ink);border:1px solid transparent;font-weight:600}.tabs a:hover{background:var(--g3)}.tabs a[aria-current=page]{background:var(--g1);color:#fff}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -83,24 +84,45 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
 .layout{display:grid;gap:14px;padding:14px 16px;max-width:1500px;margin:0 auto;grid-template-columns:minmax(300px,360px) 1fr}
 @media(max-width:900px){.layout{grid-template-columns:1fr}.stage{order:-1}}
 .col{display:grid;gap:14px;align-content:start}.sticky{position:sticky;top:10px;align-self:start}
+.acct{position:relative}.acct summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12px;background:var(--card);color:var(--ink);user-select:none}.acct summary::-webkit-details-marker{display:none}.acct[open] summary{background:var(--g3)}
+.acctmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;display:grid;gap:4px;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.25)}.acctmenu button{width:100%;text-align:left;font-size:14px;padding:8px 10px}
+.hud-bottom{display:contents}   /* on desktop the wrapper is invisible and each control keeps its own corner */
+@media(max-width:900px){#viewAnalysis .layout{grid-template-columns:minmax(0,1fr)}}   /* the Analysis id rule above is stronger than the plain one, so stack the columns here too */
+/* phones: a compact header and HUD, and the bottom controls flow in one stack instead of lying on top of each other */
+@media(max-width:700px){
+  header{padding:8px 12px;gap:6px 10px}header h1{font-size:18px}header h1 small{display:none}
+  .chip{width:100%;justify-content:space-between}.chip b{max-width:42vw}.tag{font-size:11px;padding:2px 8px}.tabs a{padding:5px 10px}
+  .hud{font-size:11px}.hud-tl{min-width:0;gap:2px 10px;padding:6px 8px}.hud-tl b{font-size:14px}.hud-tr{padding:6px 8px}.hud-tr b{font-size:14px}
+  #viewMap .stage{min-height:520px}
+  .hud-bottom{position:absolute;left:6px;right:6px;bottom:6px;z-index:6;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+  .hud-bottom>.hud{position:static;left:auto;right:auto;top:auto;bottom:auto;transform:none;width:auto;max-width:none;min-width:0}
+  .hud-bottom>.dock{max-height:30vh}.hud-bottom>.chat{align-items:stretch}.hud-bottom>.chat .chatbtn{width:100%}
+  .hud-bottom .hud button{min-height:36px;padding:6px 10px;font-size:12px}.hud-bc{padding:6px 10px}
+  .hud-bottom:has(#ask:not([hidden]))>.dock,.hud-bottom:has(#ask:not([hidden]))>#scrubBar,.hud-bottom:has(#ask:not([hidden]))>.hud-bl{display:none}
+  .layout{padding:10px 12px}
+  header button,header summary,.acct summary{min-height:36px;padding:6px 12px;display:inline-flex;align-items:center}.acctmenu button{min-height:40px}
+  .anabar button,.row button,.cta{min-height:36px}
+}
 </style>
 </head>
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
   <nav class="tabs" id="tabs" aria-label="Pages"><a href="#/map" id="tabMap" aria-current="page">Map</a><a href="#/analysis" id="tabAnalysis">Analysis</a></nav>
-  <div class="chip" id="userChip" hidden><b id="userName"></b><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="compareBtn">Compare</button><button type="button" id="signOut">Sign out</button></div>
+  <div class="chip" id="userChip" hidden><b id="userName"></b>
+    <details class="acct" id="acct"><summary aria-label="Account menu">Menu</summary><div class="acctmenu"><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="compareBtn">Compare</button></div></details>
+    <button type="button" id="signOut">Log out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
 </header>
 <div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
   <div class="card gatebox">
     <h1 id="gateTitle">Terrarium</h1>
-    <p>See a month in your home before you sign for it. Sign in to keep your home and come back to it.</p>
+    <p>See a month in your home before you sign for it. Log in to keep your home and come back to it.</p>
     <form id="gateForm" novalidate>
       <label for="gateEmail">Email</label>
       <input type="email" id="gateEmail" autocomplete="email" placeholder="you@example.com">
       <div id="gateErr" class="chk bad" role="alert"></div>
-      <div class="row"><button class="cta" type="submit">Continue</button><button type="button" id="gateGuest">Try without signing in</button></div>
+      <div class="row"><button class="cta" type="submit">Log in</button><button type="button" id="gateGuest">Try without logging in</button></div>
     </form>
     <p class="note" id="gateNote">Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.</p>
   </div>
@@ -145,6 +167,22 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
       <div class="hud hud-tl panel" id="hudFigs"></div>
       <div class="hud hud-tr panel" id="hudClock"></div>
       <div class="hud panel insp" id="inspect" hidden></div>
+      <div class="hud hud-tc panel" id="legend">Click anything to inspect it. Everything that moves is illustrative. Drag to rotate, scroll to zoom.</div>
+      <div class="hud-bottom" id="hudBottom">
+      <aside class="hud dock panel" id="dock" aria-label="Play the month">
+        <button type="button" class="dockhead" id="dockToggle" aria-expanded="true" aria-controls="dockBody">Play the month <span aria-hidden="true">&#9662;</span></button>
+        <div id="dockBody">
+          <section id="game" aria-label="Play the month">
+      <div id="gameBody"></div>
+    </section>
+        </div>
+      </aside>
+      <div class="hud hud-bc panel" id="placeBar" hidden>
+        <b>Place your lot</b> <span class="vs">click a lot on the map, or choose one here</span>
+        <select id="lotSel" aria-label="Lot"></select>
+        <div class="rd" id="lotRead" aria-live="polite"></div>
+        <div class="row" style="margin-top:0"><button class="cta" type="button" id="lotConfirm">Confirm lot</button><button type="button" id="lotCancel">Cancel</button></div>
+      </div>
       <div class="hud hud-bc panel" id="scrubBar">
         <label for="scrub" class="sr">Day and hour of the month</label>
         <input id="scrub" type="range" min="0" max="719" step="1" value="0" list="scrubTicks" aria-label="Day and hour of the month">
@@ -158,21 +196,6 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
         <button id="follow">Follow a trip</button>
         <button id="skip" hidden>Skip week</button>
       </div>
-      <div class="hud hud-bc panel" id="placeBar" hidden>
-        <b>Place your lot</b> <span class="vs">click a lot on the map, or choose one here</span>
-        <select id="lotSel" aria-label="Lot"></select>
-        <div class="rd" id="lotRead" aria-live="polite"></div>
-        <div class="row" style="margin-top:0"><button class="cta" type="button" id="lotConfirm">Confirm lot</button><button type="button" id="lotCancel">Cancel</button></div>
-      </div>
-      <div class="hud hud-tc panel" id="legend">Click anything to inspect it. Everything that moves is illustrative. Drag to rotate, scroll to zoom.</div>
-      <aside class="hud dock panel" id="dock" aria-label="Play the month">
-        <button type="button" class="dockhead" id="dockToggle" aria-expanded="true" aria-controls="dockBody">Play the month <span aria-hidden="true">&#9662;</span></button>
-        <div id="dockBody">
-          <section id="game" aria-label="Play the month">
-      <div id="gameBody"></div>
-    </section>
-        </div>
-      </aside>
       <div class="hud chat" id="chat">
         <section class="ask chatpanel" id="ask" aria-label="Ask about your month" hidden>
       <form id="askForm" class="row" style="margin-top:0"><input type="text" id="askInput" placeholder="Ask in your own words" aria-label="Your question" autocomplete="off"><button class="cta" type="submit">Ask</button></form>
@@ -180,6 +203,7 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
       <div class="ans" id="askOut" aria-live="polite"></div>
     </section>
         <button type="button" class="cta chatbtn" id="chatToggle" aria-expanded="false" aria-controls="ask">Ask about your month</button>
+      </div>
       </div>
   </div>
 </main>

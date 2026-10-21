@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process'), fs = require('fs'), path = require('path'), assert = require('assert');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!fs.existsSync(CHROME)) { console.log('browser checks skipped: no Chrome at ' + CHROME + ' (set CHROME)'); process.exit(0); }
-const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => fs.rmSync(PROFILE, { recursive: true, force: true }));
+const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => { try { fs.rmSync(PROFILE, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { /* a just-killed Chrome may still be writing; the OS clears the temp folder */ } });
 const page = 'file://' + path.join(__dirname, '..', 'site', 'index.html');
 // Each run gets its own profile: with a normal Chrome already open, a headless launch on the default profile hands off to it and returns un-run HTML.
 // A dump with no scene state at all means Chrome did not finish (a launch problem), so it is retried (up to eight more times; headless Chrome intermittently returns the un-run page). A failed assertion is never retried.
@@ -172,4 +172,18 @@ const cs = JSON.parse(attr(dump('house=condo&level=5&lot=0&frames=30&mode=studio
 ok(cs.view && cs.view.cut.on === true, 'a real click on the home in Studio opens the section');
 cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&modelater=10&solarKwp=4');
 ok(cx.view.mode === 'lab' && cx.view.cut.on === false && cx.view.cut.clip === 0 && cx.view.cut.labels === 0 && cx.view.cut.interior === false && cx.view.cut.doubleSided === false && cx.ui.cutBtn === 'hidden', 'leaving Studio closes the section: no plane, no notes, the floors are solid again, the button is gone');
+// phones: no sideways scrolling, nothing lying on top of anything else, thumb-sized targets, at real phone widths (the page in an iframe of exact width; headless Chrome will not make a window narrower than 500 px)
+const phoneUi = (q, w, hgt) => {
+  const url = 'file://' + path.join(__dirname, 'phone.html') + '?w=' + w + '&h=' + (hgt || 844) + '&q=' + encodeURIComponent('shot&' + q);
+  for (let i = 0; i < 9; i++) { const o = spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, url, '--allow-file-access-from-files'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || ''; const u = attr(o, 'ui'); if (u) return JSON.parse(u); }
+  return null;
+};
+const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=condo&level=5&lot=0&frames=12&solarKwp=4'], ['the Analysis page', 'view=analysis&house=condo&level=5&frames=8'], ['the set-up dialog', 'wizard=1&frames=6'], ['Compare', 'compare=1&lot=1&trees=4&frames=6'], ['the first look', 'firstlook=1&frames=6']];
+[[360, 740], [390, 844], [430, 932], [768, 1024]].forEach((wh) => {
+  const bad = [];
+  PHONE_PAGES.forEach((pg) => { const u = phoneUi(pg[1], wh[0], wh[1]); if (!u) bad.push(pg[0] + ': no data'); else { if (u.overflow.vw !== wh[0] && !(u.overflow.vw >= wh[0] - 20)) bad.push(pg[0] + ': viewport ' + u.overflow.vw); if (u.overflow.scroll > 1 || u.overflow.wide.length) bad.push(pg[0] + ': sticks out ' + u.overflow.scroll + 'px (' + u.overflow.wide.slice(0, 3).join(', ') + ')'); if (u.layout.overlaps.length) bad.push(pg[0] + ': overlap ' + u.layout.overlaps.join(', ')); if (wh[0] <= 430 && u.layout.minTap < 36) bad.push(pg[0] + ': a target is only ' + u.layout.minTap + ' px tall'); } });
+  ok(bad.length === 0, 'at ' + wh[0] + ' px wide: no page scrolls sideways, no control lies on another, targets are thumb-sized' + (bad.length ? ' [' + bad.join('; ') + ']' : ''));
+});
+let pm = phoneUi('house=condo&level=5&lot=0&frames=12&solarKwp=4&menu=1', 360, 740);
+ok(pm && pm.overflow.scroll <= 1 && pm.overflow.wide.length === 0 && pm.layout.overlaps.length === 0, 'at 360 px the open account menu fits on the screen');
 console.log('browser checks passed:', n);

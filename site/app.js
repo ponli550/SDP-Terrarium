@@ -106,7 +106,7 @@
   function finishSetup() { saveProfile(true); closeWizard(); if (firstRun) { firstRun = false; showFirstLook(); } }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
   function closeWizard() { $('wizard').hidden = true; }
-  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Leave' : 'Sign out'; } }
+  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Log in' : 'Log out'; $('signOut').title = session.guest ? 'Leave guest mode and log in with an email' : 'Log out of ' + session.email; } }
   function startSession(s) {
     session = s; firstRun = !!(s.isNew || s.setUp === false); Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
     if (st.billKwh === undefined) st.billKwh = null;
@@ -146,8 +146,11 @@
   $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
   $('lotConfirm').addEventListener('click', confirmLot);
   $('lotCancel').addEventListener('click', cancelLot);
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); else if (!$('ask').hidden) openChat(false); });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if ($('acct').open) $('acct').open = false; else if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); else if (!$('ask').hidden) openChat(false); });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
+  // the account menu closes when you choose something in it, press Escape, or click anywhere else
+  $('acct').addEventListener('click', function (e) { if (e.target.closest('.acctmenu button')) $('acct').open = false; });
+  document.addEventListener('click', function (e) { if ($('acct').open && !$('acct').contains(e.target)) $('acct').open = false; });
   $('signOut').addEventListener('click', function () {
     store.signOut(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
@@ -434,7 +437,26 @@
       var right = col.getBoundingClientRect().right; [].forEach.call(col.children, function (c) { worst = Math.max(worst, c.getBoundingClientRect().right - right); });
     }); return Math.round(worst * 10) / 10;
   }
-  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
+  // sideways overflow, for phones: how far the page is wider than the screen, and which visible things stick out past it (ignoring anything inside a box that scrolls on its own)
+  function overflowInfo() {
+    var vw = document.documentElement.clientWidth, out = [];
+    [].forEach.call(document.querySelectorAll('body *'), function (e) {
+      var r = e.getBoundingClientRect(); if (!r.width || r.right <= vw + 1 || e.closest('[hidden]')) return;
+      var cs = getComputedStyle(e); if (cs.position === 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return;
+      for (var p = e.parentElement; p && p !== document.body; p = p.parentElement) { var o = getComputedStyle(p).overflowX; if ((o === 'auto' || o === 'scroll' || o === 'hidden') && p.getBoundingClientRect().right <= vw + 1) return; }
+      out.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ')[0] : '') + ' +' + Math.round(r.right - vw));
+    });
+    return { vw: vw, scroll: document.documentElement.scrollWidth - vw, wide: out.slice(0, 12) };
+  }
+  // which Map controls lie on top of each other, and the smallest thing a finger has to hit
+  function layoutInfo() {
+    var R = function (sel) { var e = typeof sel === 'string' ? document.querySelector(sel) : sel; if (!e || e.closest('[hidden]')) return null; var r = e.getBoundingClientRect(); return r.width && r.height ? r : null; };
+    var parts = { figs: R('#hudFigs'), clock: R('#hudClock'), dock: R('#dock'), place: R('#placeBar'), scrub: R('#scrubBar'), buttons: R('.hud-bl'), chat: R('#chat'), legend: R('#legend') }, over = [], names = Object.keys(parts);
+    for (var i = 0; i < names.length; i++) for (var j = i + 1; j < names.length; j++) { var a = parts[names[i]], b = parts[names[j]]; if (a && b && !(a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1)) over.push(names[i] + '/' + names[j]); }
+    var tap = 999; [].forEach.call(document.querySelectorAll('.hud button, header button, header summary'), function (b) { var r = R(b); if (r) tap = Math.min(tap, Math.round(r.height)); });
+    return { overlaps: over, minTap: tap === 999 ? null : tap };
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
@@ -443,6 +465,7 @@
     if (q0.has('shot') && q0.get('mode')) scene.setViewMode(q0.get('mode'));
     if (q0.has('shot') && q0.has('follow')) { scene.follow(true); $('follow').textContent = 'Stop following'; $('follow').classList.add('on'); } }
   if (SHOT && q0.has('seek') && scene) { var sk = q0.get('seek').split(':'); scene.pause(); setPlayUi(false); scene.seek(+sk[0], +sk[1]); }   // paused at day:hour
+  if (SHOT && q0.has('menu')) $('acct').open = true;   // the account menu open, to check it fits the screen
   if (SHOT && q0.get('cut') && scene) scene.setCut(true);   // Studio with the section open
   if (SHOT && q0.has('drag') && scene) { scrubEl.value = q0.get('drag'); scrubEl.dispatchEvent(new Event('input', { bubbles: true })); }   // the same event a drag fires
   window.__terrarium = { go: go, view: function () { return view; }, openChat: openChat, hudWrites: function () { return hudWrites; }, inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };

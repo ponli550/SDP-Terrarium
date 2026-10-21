@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Phone frame (test harness)</title>
+<!-- Loads the site in an iframe of an exact width so its media queries see a phone viewport (headless Chrome will not make a window narrower than 500 px).
+     Run Chrome with --allow-file-access-from-files so this page can read the frame's test-mode state. Usage: phone.html?w=390&h=844&q=<url-encoded query for index.html> -->
+<body style="margin:0;background:#222">
+<iframe id="f" style="border:0;display:block;background:#fff"></iframe>
+<script>
+  var q = new URLSearchParams(location.search), f = document.getElementById('f');
+  f.width = +q.get('w') || 390; f.height = +q.get('h') || 844; f.src = '../site/index.html?' + (q.get('q') || 'shot');
+  var t = setInterval(function () {
+    try {
+      var d = f.contentDocument;
+      if (d && d.body && d.body.dataset.ui && d.body.dataset.state) {
+        clearInterval(t); document.body.dataset.ui = d.body.dataset.ui; document.body.dataset.state = d.body.dataset.state;
+        var im = d.getElementById('shotimg'); if (im) document.body.dataset.shot = im.src.length;
+        document.body.dataset.done = '1';
+      }
+    } catch (e) { document.body.dataset.err = String(e); }
+  }, 50);
+</script>
