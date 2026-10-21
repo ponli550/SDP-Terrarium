@@ -114,6 +114,9 @@
           fg.userData.body = add(fg, fgeo, fmat, 0, (bounds[f] + bounds[f + 1]) / 2, 0);
           var edges = new THREE.LineSegments(new THREE.EdgesGeometry(fgeo), new THREE.LineBasicMaterial({ color: 0x37474f })); edges.position.set(0, (bounds[f] + bounds[f + 1]) / 2, 0); edges.visible = false; fg.add(edges);
           if (type === 'condo' && f > 0) add(fg, sbox(w - 0.8, 0.32, 1.7), M(0xece7da), 0, bounds[f] + 0.16, d / 2 + 0.85);   // balcony slab
+          var fi = [add(fg, sbox(w - 0.8, 0.35, d - 0.8), M(0xcfc7b8), 0, bounds[f] + 0.18, 0, false)];   // the floor plate
+          if (type === 'condo') fi.push(add(fg, sbox(3, fh - 0.5, 3), M(0x5f6b73), w / 2 - 2.5, (bounds[f] + bounds[f + 1]) / 2, -d / 2 + 2.5, false));   // the lift shaft
+          fi.forEach(function (m) { m.visible = false; }); fg.userData.inner = fi;
           fg.userData.mat = fmat; fg.userData.edges = edges; g.add(fg); floorG.push(fg);
         }
         roofG = new THREE.Group(); g.add(roofG);
@@ -141,6 +144,12 @@
         if (type === 'condo') add(uf, box(w + 0.5, 1.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.85 }), 0, unitY, d / 2 + 0.3, false);
         g.userData.glow = glow; g.userData.ac = ac; g.userData.unitY = unitY;
         g.userData.floors = floorG; g.userData.roofG = roofG; g.userData.gap = type === 'condo' ? 5 : 4;
+        if (type === 'condo') {
+          var ufi = floorG.indexOf(uf), room = add(uf, new THREE.BoxGeometry(w - 2, bounds[ufi + 1] - bounds[ufi] - 0.8, d - 2), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }), 0, (bounds[ufi] + bounds[ufi + 1]) / 2, 0, false);   // your unit
+          room.visible = false; uf.userData.inner.push(room);
+          var mk = function (parent, x, y, z) { var o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o); return o; };
+          g.userData.anchors = { lift: mk(floorG[0], w / 2 - 2.5, bounds[1] * 0.5, -d / 2 + 2.5), roof: mk(roofG, 0, h + 2, 0), shade: mk(floorG[Math.min(2, nF - 1)], -w / 2 - 1, (bounds[Math.min(2, nF - 1)] + bounds[Math.min(2, nF - 1) + 1]) / 2, d / 2 + 1) };
+        }
         if (type === 'condo') { var anc = new THREE.Object3D(); anc.position.set(0, unitY + 1.4, d / 2 + 0.5); uf.add(anc); g.userData.unitFloor = floorG.indexOf(uf); g.userData.unitAnchor = anc; }
       }
       g.userData.roof = { y: h + 0.8, w: w, d: d, type: type };
@@ -160,6 +169,7 @@
     }, 0);
     earth.visible = false; scene.add(earth);
     // Studio's turntable: a dark disc with a light rim under your home
+    var cutOn = false, cutPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), cutLabels = [], cutNote = null;
     var turntable = new THREE.Group(), studioAz0 = null, camAz = function () { return Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z); };
     add(turntable, new THREE.CylinderGeometry(22, 22, 1.2, 64), new THREE.MeshLambertMaterial({ color: 0x1b2432 }), 0, -0.6, 0);
     add(turntable, new THREE.TorusGeometry(22, 0.35, 8, 64), new THREE.MeshBasicMaterial({ color: 0x4fc3f7 }), 0, 0.05, 0, false).rotation.x = Math.PI / 2;
@@ -194,6 +204,13 @@
       ring.rotation.x = -Math.PI / 2;
       if (unitLabel) { unitLabel.el.remove(); labels.splice(labels.indexOf(unitLabel), 1); unitLabel = null; }
       if (mine.userData.unitAnchor) { label('Your unit, level ' + lvl, mine.userData.unitAnchor, 0, 'unit'); unitLabel = labels[labels.length - 1]; unitLabel.hidden = true; unitLabel.el.style.display = 'none'; }
+      cutLabels.forEach(function (l) { l.el.remove(); labels.splice(labels.indexOf(l), 1); }); cutLabels = [];
+      if (mine.userData.anchors) {
+        var A = T.ASSUME, an = mine.userData.anchors, cl = function (text, obj) { label(text, obj, 0, 'dim'); var l = labels[labels.length - 1]; l.hidden = true; l.el.style.display = 'none'; cutLabels.push(l); };
+        cl('Lift or stairs to the ground: ' + (A.liftMin.v + A.liftPerLevel.v * lvl).toFixed(1) + ' min from level ' + lvl + ' (illustrative)', an.lift);
+        cl('Plot trees shade levels 1 to ' + A.shadeLevels.v + ' only (illustrative)', an.shade);
+        if (lvl === T.CONDO_LEVELS) cl('Under the roof: cooling +' + Math.round(A.roofHeat.v * 100) + '% (illustrative)', an.roof);
+      }
       panels.userData.inspect = 'solar';
       clearGroup(panels);
       var roof = mine.userData.roof, n = Math.round(input.solarKwp), cols = roof.type === 'condo' ? 3 : 4;
@@ -250,6 +267,7 @@
       if (!downAt) return; var moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); downAt = null; if (moved > 5) return;
       var r = el.getBoundingClientRect(), hit = pickNdc(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       if (placing) { if (hit && hit.userData.lot !== undefined && hooks.onLotPick) hooks.onLotPick(hit.userData.lot); return; }   // while placing, a click chooses a lot
+      if (viewMode === 'studio') { if (hit && hit.userData.inspect === 'home') setCut(!cutOn); return; }   // in Studio a tap on the home opens or closes the section
       select(hit);
     });
     el.addEventListener('pointermove', function (e) {
@@ -389,13 +407,32 @@
       var up = u.roof.y + 1 + u.floors.length * u.gap, down = 19 + (earthLayers.length - 1) * EARTH_GAP, span = up + down;
       flyGoal = { target: new THREE.Vector3(HOME_POS.x, (up - down) / 2, HOME_POS.z - 3) }; zoomGoal = Math.max(70, span * 1.7 + 20);
     }
+    // the cross-section: a plane takes the front half of the home away (and the turntable with it) and you look into a drawn interior
+    (function () { var a = new THREE.Object3D(); a.position.set(0, -2, 24); turntable.add(a); label('Floors and rooms are drawn, not modelled', a, 0, 'dim'); cutNote = labels[labels.length - 1]; cutNote.hidden = true; cutNote.el.style.display = 'none'; })();
+    function cutCamera() {
+      var u = mine && mine.userData; if (!u || !u.roof) return; var h = u.roof.y + 1;
+      flyGoal = null; zoomGoal = null; controls.target.set(HOME_POS.x, h * 0.5, HOME_POS.z);
+      camera.position.set(HOME_POS.x + 20, h * 0.5 + 16, HOME_POS.z + Math.max(60, h * 1.5 + 25));
+    }
+    function setCut(on) {
+      on = !!on && viewMode === 'studio'; if (on === cutOn) return; cutOn = on;
+      controls.autoRotate = viewMode === 'studio' && !reduce && !cutOn;
+      if (on) cutCamera(); else focusStudio();
+      if (hooks.onCut) hooks.onCut(cutOn);
+    }
+    function applyCut() {
+      var u = mine && mine.userData;
+      renderer.clippingPlanes = cutOn ? [cutPlane] : []; cutPlane.constant = HOME_POS.z;
+      if (u && u.floors) u.floors.forEach(function (fg) { fg.userData.mat.side = cutOn ? THREE.DoubleSide : THREE.FrontSide; fg.userData.inner.forEach(function (m) { m.visible = cutOn; }); });
+      cutLabels.concat(cutNote ? [cutNote] : []).forEach(function (l) { l.hidden = !cutOn; if (!cutOn) l.el.style.display = 'none'; });
+    }
     function focusStudio() {
       var u = mine && mine.userData; if (!u || !u.roof) return;
       flyGoal = { target: new THREE.Vector3(HOME_POS.x, (u.roof.y + 1) / 2, HOME_POS.z) }; zoomGoal = Math.max(55, (u.roof.y + 1) * 1.6 + 40);
     }
     function setViewMode(m) {
       m = m === 'exploded' || m === 'studio' ? m : 'lab'; if (m === viewMode) return;
-      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0; controls.autoRotate = m === 'studio' && !reduce;
+      viewMode = m; explodeGoal = m === 'exploded' ? 1 : 0; if (m !== 'studio' && cutOn) { cutOn = false; if (hooks.onCut) hooks.onCut(false); } controls.autoRotate = m === 'studio' && !reduce && !cutOn;
       if (m !== 'lab') { if (placing) setPlacing(false); select(null); following = false; if (worldHidden) reconcileHidden(); if (m === 'exploded') focusExploded(); else focusStudio(); }
       else { flyGoal = { target: DEFAULT_TGT.clone() }; zoomGoal = DEFAULT_CAM.distanceTo(DEFAULT_TGT); }
       if (hooks.onViewMode) hooks.onViewMode(viewMode);
@@ -410,6 +447,7 @@
         earthLayers.forEach(function (lg, i) { lg.position.y = -i * EARTH_GAP * explode; });
         var showG = explode > 0.6; groundLabels.forEach(function (l) { l.hidden = !showG; if (!showG) l.el.style.display = 'none'; });
       }
+      applyCut();
       earth.visible = worldHidden && (viewMode === 'exploded' || explode > 0.02); turntable.visible = worldHidden && viewMode === 'studio';
       if (pinLabel) { pinLabel.hidden = worldHidden && viewMode === 'studio'; if (pinLabel.hidden) pinLabel.el.style.display = 'none'; }
       if (viewMode === 'studio') { if (studioAz0 === null) studioAz0 = camAz(); } else studioAz0 = null;
@@ -419,15 +457,15 @@
         fg.position.y = i * u.gap * explode; fg.userData.edges.visible = explode > 0.02;
         var mine1 = i === u.unitFloor; fg.userData.mat.emissive.setHex(mine1 ? 0x2e7d32 : 0x000000).multiplyScalar(mine1 ? 1.1 * explode : 0);
       });
-      var shade = explode < 0.02;   // pulled-apart slabs would shade each other grey, so they stop casting while exploded
+      var shade = explode < 0.02 && !cutOn;   // pulled-apart slabs would shade each other grey, so they stop casting while exploded
       if (u.shade !== shade) { u.shade = shade; u.floors.forEach(function (fg) { fg.userData.body.castShadow = shade; }); u.roofG.children.forEach(function (m) { m.castShadow = shade; }); }
       u.roofG.position.y = lift; panels.position.y = lift;
-      if (unitLabel) { var show = explode > 0.6; unitLabel.hidden = !show; if (!show) unitLabel.el.style.display = 'none'; }
+      if (unitLabel) { var show = explode > 0.6 || cutOn; unitLabel.hidden = !show; if (!show) unitLabel.el.style.display = 'none'; }
       pin.userData.lift = lift;
     }
     function viewState() {
       var u = mine && mine.userData;
-      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, studio: { on: viewMode === 'studio', turntable: turntable.visible, rotating: controls.autoRotate, rotated: studioAz0 === null ? 0 : Math.round(Math.abs(camAz() - studioAz0) * 1000) / 1000, bg: scene.background.getHexString(), marker: pin.visible, markerLabel: !!pinLabel && !pinLabel.hidden }, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
+      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, cut: { on: cutOn, clip: renderer.clippingPlanes.length, planeZ: cutPlane.constant, doubleSided: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.mat.side === THREE.DoubleSide), interior: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.inner[0].visible), labels: cutLabels.filter(function (l) { return !l.hidden; }).length + (cutNote && !cutNote.hidden ? 1 : 0), unitRoom: !!(mine && mine.userData.floors && mine.userData.unitFloor >= 0 && mine.userData.floors[mine.userData.unitFloor].userData.inner.slice(-1)[0].visible) }, studio: { on: viewMode === 'studio', turntable: turntable.visible, rotating: controls.autoRotate, rotated: studioAz0 === null ? 0 : Math.round(Math.abs(camAz() - studioAz0) * 1000) / 1000, bg: scene.background.getHexString(), marker: pin.visible, markerLabel: !!pinLabel && !pinLabel.hidden }, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;
@@ -563,6 +601,8 @@
       isActive: function () { return active; },
       shotNow: shotDone,
       setViewMode: setViewMode,
+      setCut: setCut,
+      cutOn: function () { return cutOn; },
       viewMode: function () { return viewMode; },
       isLooping: function () { return looping; },
       resize: resize,
