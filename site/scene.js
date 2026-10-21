@@ -19,7 +19,7 @@
     scene.background = SKY_DAY.clone();
     scene.fog = new THREE.Fog(0xbfe3f5, 170, 420);
 
-    var camera = new THREE.PerspectiveCamera(38, 1, 1, 1000);
+    var camera = new THREE.PerspectiveCamera(38, 1, 1, 2500);
     camera.position.set(64, 62, 84);
     var controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.target.set(8, 0, -8);
@@ -62,9 +62,9 @@
       cx.fillStyle = '#6aa93f'; cx.fillRect(0, 0, 256, 256);
       var tones = ['#5f9d36', '#7bb84a', '#559230', '#86c352', '#6aa93f'];
       for (var k = 0; k < 900; k++) { cx.globalAlpha = 0.22 + r() * 0.3; cx.fillStyle = tones[Math.floor(r() * tones.length)]; var rr = 3 + r() * 11, gx = r() * 256, gy = r() * 256; [[0, 0], [256, 0], [0, 256], [256, 256], [-256, 0], [0, -256]].forEach(function (o) { cx.beginPath(); cx.arc(gx + o[0], gy + o[1], rr, 0, 6.2832); cx.fill(); }); }
-      var tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(26, 26); tx.anisotropy = 4; return tx;
+      var tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(70, 70); tx.anisotropy = 4; return tx;
     })();
-    add(scene, new THREE.PlaneGeometry(520, 520), new THREE.MeshLambertMaterial({ map: grass }), 0, -0.05, 0, false).rotation.x = -Math.PI / 2;
+    add(scene, new THREE.PlaneGeometry(1400, 1400), new THREE.MeshLambertMaterial({ map: grass }), 0, -0.05, 0, false).rotation.x = -Math.PI / 2;
     function road(x, z, w, d) { add(scene, box(w, 0.12, d), M(0x4a5560), x, 0.02, z, false).receiveShadow = true; }
     road(0, 16, 230, 9);            // main road
     road(52, -18, 9, 76);           // road past the bus stop
@@ -105,9 +105,9 @@
     var homePalette = [0xf4e4c1, 0xe8c9a0, 0xd9e4c8, 0xf0d5d0, 0xcfe0e8, 0xf6e8a8];
     function building(type, color, withMarks, level) {
       var g = new THREE.Group(), fp = T.FOOTPRINT[type] || T.FOOTPRINT.terrace;
-      var w = fp[0], h = { terrace: 6.5, semid: 7.5, condo: 30 }[type] || 6.5, d = fp[1];
+      var nL = T.CONDO_LEVELS, w = fp[0], h = type === 'condo' ? 4.7 + 3.4 * (nL - 2) + 4.9 : ({ terrace: 6.5, semid: 7.5 }[type] || 6.5), d = fp[1];   // a condo: a 4.7 lobby floor, 3.4 per level, a 4.9 top floor (30 for eight levels)
       // your own home is built as separate floors so the Exploded view can pull them apart; at rest they stack to the same box
-      var bounds = type === 'condo' ? [0, 4.7, 8.1, 11.5, 14.9, 18.3, 21.7, 25.1, 30] : [0, 3.6, h], nF = bounds.length - 1, floorG = [], roofG = g;
+      var bounds = type === 'condo' ? [0].concat(Array.apply(null, Array(nL - 1)).map(function (_, i) { return 1.3 + 3.4 * (i + 1); }), [h]) : [0, 3.6, h], nF = bounds.length - 1, floorG = [], roofG = g;
       if (withMarks) {
         for (var f = 0; f < nF; f++) {
           var fg = new THREE.Group(), fh = bounds[f + 1] - bounds[f], fgeo = box(w, fh, d), fmat = new THREE.MeshLambertMaterial({ color: color });
@@ -125,7 +125,7 @@
       var onFloor = function (y) { if (!withMarks) return g; for (var i = 0; i < nF; i++) if (y < bounds[i + 1]) return floorG[i]; return floorG[nF - 1]; };
       add(roofG, box(w + 1.2, 0.7, d + 1.2), M(0x8d6e63), 0, h + 0.35, 0);               // roof slab
       add(roofG, box(w + 1.2, 0.6, 0.4), M(0xd7ccc8), 0, h + 1.0, d / 2 + 0.4);           // parapet
-      var rows = type === 'condo' ? 8 : 2, cols = type === 'condo' ? 3 : (type === 'semid' ? 3 : 2);
+      var rows = type === 'condo' ? nL : 2, cols = type === 'condo' ? 3 : (type === 'semid' ? 3 : 2);
       for (var r = 0; r < rows; r++) for (var cc = 0; cc < cols; cc++) {
         var wx = -w / 2 + (cc + 0.5) * (w / cols), wy = type === 'condo' ? 3 + r * 3.4 : (r === 0 ? 2.2 : 4.9);
         if (r === 0 && type !== 'condo' && cc === 0) continue;                         // leave room for the door
@@ -143,7 +143,7 @@
         var glow = add(uf, new THREE.SphereGeometry(2.2, 12, 8), glowMat, w / 2 + 2.2, unitY, 0, false);
         if (type === 'condo') add(uf, box(w + 0.5, 1.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.85 }), 0, unitY, d / 2 + 0.3, false);
         g.userData.glow = glow; g.userData.ac = ac; g.userData.unitY = unitY;
-        g.userData.floors = floorG; g.userData.roofG = roofG; g.userData.gap = type === 'condo' ? 5 : 4;
+        g.userData.floors = floorG; g.userData.roofG = roofG; g.userData.gap = type === 'condo' ? Math.max(1.5, Math.min(5, 90 / nF)) : 4;   // a tall tower is pulled apart less per floor, so the whole stack still fits
         if (type === 'condo') {
           var ufi = floorG.indexOf(uf), room = add(uf, new THREE.BoxGeometry(w - 2, bounds[ufi + 1] - bounds[ufi] - 0.8, d - 2), new THREE.MeshBasicMaterial({ color: 0x66bb6a, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }), 0, (bounds[ufi] + bounds[ufi + 1]) / 2, 0, false);   // your unit
           room.visible = false; uf.userData.inner.push(room);
@@ -157,6 +157,7 @@
     }
     var pin = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.5, 10), new THREE.MeshLambertMaterial({ color: 0xe53935, emissive: 0x7a1010 }));
     pin.rotation.x = Math.PI; scene.add(pin);
+    var camPlaced = false, fogK = 1;   // fogK: fog distances scale up with a tall tower, whose camera stands further back
     var viewMode = 'lab', explode = 0, explodeGoal = 0, unitLabel = null, worldHidden = false, hiddenByExplode = [];
     // the cutaway earth under your plot, shown only while exploded: four drawn layers (not modelled: the model has no soil or water)
     var earth = new THREE.Group(), EARTH_W = 46, EARTH_D = 44, EARTH_GAP = 4, earthLayers = [], groundLabels = [];
@@ -199,7 +200,12 @@
       if (ring) { scene.remove(ring); disposeTree(ring); }
       mine = building(input.house, 0xfff1cf, true, lvl); mine.userData.inspect = 'home'; mine.userData.lot = lotIdx;
       mine.position.set(HOME_POS.x, 0, HOME_POS.z); homes.add(mine);
-      pin.userData.baseY = mine.userData.roof.y + 8;
+      var tall = Math.max(1, mine.userData.roof.y / 62);   // a tall tower needs the default camera further back and aimed higher
+      fogK = tall; if (!worldHidden) { scene.fog.near = 170 * fogK; scene.fog.far = 420 * fogK; }
+      DEFAULT_TGT.set(8, tall > 1 ? mine.userData.roof.y * 0.45 : 0, -8); DEFAULT_CAM.set(8 + 56 * tall, DEFAULT_TGT.y + 62 * tall, -8 + 92 * tall);
+      if (!camPlaced) { camPlaced = true; camera.position.copy(DEFAULT_CAM); controls.target.copy(DEFAULT_TGT); }   // the first build starts there; later changes glide
+      else if (viewMode === 'lab' && !following && !placing) returning = 3;
+      pin.userData.baseY = mine.userData.roof.y + 8; controls.maxDistance = Math.max(240, mine.userData.roof.y * 3.2);   // a tall tower needs room to step back
       ring = add(scene, new THREE.RingGeometry(10, 11.2, 48), new THREE.MeshBasicMaterial({ color: 0x2e6b34, side: THREE.DoubleSide }), HOME_POS.x, 0.12, HOME_POS.z + 2, false);
       ring.rotation.x = -Math.PI / 2;
       if (unitLabel) { unitLabel.el.remove(); labels.splice(labels.indexOf(unitLabel), 1); unitLabel = null; }
@@ -400,19 +406,21 @@
       worldHidden = on;
       if (on) { labels.forEach(function (l) { if (!l.hidden && l.obj !== pin && groundLabels.indexOf(l) < 0) { l.hidden = true; l.exHidden = true; l.el.style.display = 'none'; } }); }
       else { hiddenByExplode.forEach(function (c) { c.visible = true; }); hiddenByExplode = []; labels.forEach(function (l) { if (l.exHidden) { l.exHidden = false; l.hidden = false; } }); groundLabels.forEach(function (l) { l.hidden = true; l.el.style.display = 'none'; }); }
-      scene.fog.near = on ? 600 : 170; scene.fog.far = on ? 1400 : 420;
+      scene.fog.near = on ? 600 : 170 * fogK; scene.fog.far = on ? 1400 : 420 * fogK;
     }
     function focusExploded() {
       var u = mine && mine.userData; if (!u || !u.floors) return;
       var up = u.roof.y + 1 + u.floors.length * u.gap, down = 19 + (earthLayers.length - 1) * EARTH_GAP, span = up + down;
-      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (up - down) / 2, HOME_POS.z - 3) }; zoomGoal = Math.max(70, span * 1.7 + 20);
+      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (up - down) / 2, HOME_POS.z - 3) }; zoomGoal = Math.max(70, span * 1.7 + 20); controls.maxDistance = Math.max(controls.maxDistance, zoomGoal + 40);
     }
     // the cross-section: a plane takes the front half of the home away (and the turntable with it) and you look into a drawn interior
     (function () { var a = new THREE.Object3D(); a.position.set(0, -2, 24); turntable.add(a); label('Floors and rooms are drawn, not modelled', a, 0, 'dim'); cutNote = labels[labels.length - 1]; cutNote.hidden = true; cutNote.el.style.display = 'none'; })();
     function cutCamera() {
       var u = mine && mine.userData; if (!u || !u.roof) return; var h = u.roof.y + 1;
-      flyGoal = null; zoomGoal = null; controls.target.set(HOME_POS.x, h * 0.5, HOME_POS.z);
-      camera.position.set(HOME_POS.x + 20, h * 0.5 + 16, HOME_POS.z + Math.max(60, h * 1.5 + 25));
+      flyGoal = null; zoomGoal = null;
+      var focusY = h > 60 ? u.unitY : h * 0.5, back = h > 60 ? 65 : Math.max(60, h * 1.5 + 25);   // a tall tower: look at your own floor up close, zoom out to see the rest
+      controls.target.set(HOME_POS.x, focusY, HOME_POS.z);
+      camera.position.set(HOME_POS.x + 20, focusY + 16, HOME_POS.z + back); controls.maxDistance = Math.max(controls.maxDistance, h * 1.5 + 100);
     }
     function setCut(on) {
       on = !!on && viewMode === 'studio'; if (on === cutOn) return; cutOn = on;
@@ -428,7 +436,7 @@
     }
     function focusStudio() {
       var u = mine && mine.userData; if (!u || !u.roof) return;
-      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (u.roof.y + 1) / 2, HOME_POS.z) }; zoomGoal = Math.max(55, (u.roof.y + 1) * 1.6 + 40);
+      flyGoal = { target: new THREE.Vector3(HOME_POS.x, (u.roof.y + 1) / 2, HOME_POS.z) }; zoomGoal = Math.max(55, (u.roof.y + 1) * 1.6 + 40); controls.maxDistance = Math.max(controls.maxDistance, zoomGoal + 40);
     }
     function setViewMode(m) {
       m = m === 'exploded' || m === 'studio' ? m : 'lab'; if (m === viewMode) return;
@@ -463,9 +471,15 @@
       if (unitLabel) { var show = explode > 0.6 || cutOn; unitLabel.hidden = !show; if (!show) unitLabel.el.style.display = 'none'; }
       pin.userData.lift = lift;
     }
+    function framingState() {
+      if (!mine) return null; var b = new THREE.Box3().setFromObject(mine), pts = [], inView = true; camera.updateMatrixWorld();
+      [b.min.x, b.max.x].forEach(function (x) { [b.min.y, b.max.y].forEach(function (y) { [b.min.z, b.max.z].forEach(function (z) { pts.push(new THREE.Vector3(x, y, z).project(camera)); }); }); });
+      pts.forEach(function (p) { if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1 || p.z > 1) inView = false; });
+      return { tgtY: Math.round(controls.target.y * 10) / 10, camDist: Math.round(camera.position.distanceTo(controls.target)), towerH: Math.round(b.max.y), inView: inView, unitY: mine.userData.unitY !== undefined ? Math.round(mine.userData.unitY * 10) / 10 : null };
+    }
     function viewState() {
       var u = mine && mine.userData;
-      return { mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, cut: { on: cutOn, clip: renderer.clippingPlanes.length, planeZ: cutPlane.constant, doubleSided: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.mat.side === THREE.DoubleSide), interior: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.inner[0].visible), labels: cutLabels.filter(function (l) { return !l.hidden; }).length + (cutNote && !cutNote.hidden ? 1 : 0), unitRoom: !!(mine && mine.userData.floors && mine.userData.unitFloor >= 0 && mine.userData.floors[mine.userData.unitFloor].userData.inner.slice(-1)[0].visible) }, studio: { on: viewMode === 'studio', turntable: turntable.visible, rotating: controls.autoRotate, rotated: studioAz0 === null ? 0 : Math.round(Math.abs(camAz() - studioAz0) * 1000) / 1000, bg: scene.background.getHexString(), marker: pin.visible, markerLabel: !!pinLabel && !pinLabel.hidden }, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
+      return { framing: framingState(), mode: viewMode, explode: Math.round(explode * 1000) / 1000, floors: u && u.floors ? u.floors.length : 0, selfShade: !!(u && u.floors && (u.floors.some(function (f) { return f.userData.body.castShadow; }) || u.roofG.children.some(function (m) { return m.castShadow; }))), gap: u ? u.gap : 0, floorY: u && u.floors ? u.floors.map(function (f) { return Math.round(f.position.y * 10) / 10; }) : [], roofY: u && u.roofG ? Math.round(u.roofG.position.y * 10) / 10 : 0, panelsY: Math.round(panels.position.y * 10) / 10, neighbours: neigh.visible, cut: { on: cutOn, clip: renderer.clippingPlanes.length, planeZ: cutPlane.constant, doubleSided: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.mat.side === THREE.DoubleSide), interior: !!(mine && mine.userData.floors && mine.userData.floors[0].userData.inner[0].visible), labels: cutLabels.filter(function (l) { return !l.hidden; }).length + (cutNote && !cutNote.hidden ? 1 : 0), unitRoom: !!(mine && mine.userData.floors && mine.userData.unitFloor >= 0 && mine.userData.floors[mine.userData.unitFloor].userData.inner.slice(-1)[0].visible) }, studio: { on: viewMode === 'studio', turntable: turntable.visible, rotating: controls.autoRotate, rotated: studioAz0 === null ? 0 : Math.round(Math.abs(camAz() - studioAz0) * 1000) / 1000, bg: scene.background.getHexString(), marker: pin.visible, markerLabel: !!pinLabel && !pinLabel.hidden }, ground: { hidden: hiddenByExplode.length, shown: earth.visible, layers: earthLayers.length, y: earthLayers.map(function (l) { return Math.round(l.position.y * 10) / 10; }), world: worldHidden, labels: groundLabels.filter(function (l) { return !l.hidden; }).length }, unitFloor: u && u.unitFloor !== undefined ? u.unitFloor : -1, unitLabelShown: !!unitLabel && !unitLabel.hidden };
     }
     function placeLabels() {
       var w = container.clientWidth, h = container.clientHeight;

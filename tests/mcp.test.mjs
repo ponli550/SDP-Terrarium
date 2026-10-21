@@ -143,7 +143,7 @@ test('tools: ask answers from the model and refuses anything else without an err
 });
 test('tools: invalid arguments are refused before they reach the model', async () => {
   const c = await connect(HOME);
-  for (const [name, args] of [['what_if', { change: 'delete_everything' }], ['what_if', {}], ['where_from', { assumption: 'nothing' }], ['compare_homes', { lot: 0 }], ['compare_homes', { lot: T.LOTS.length + 1 }], ['compare_homes', { lot: 2.5 }], ['compare_homes', { level: 9 }], ['compare_homes', { house: 'castle' }],
+  for (const [name, args] of [['what_if', { change: 'delete_everything' }], ['what_if', {}], ['where_from', { assumption: 'nothing' }], ['compare_homes', { lot: 0 }], ['compare_homes', { lot: T.LOTS.length + 1 }], ['compare_homes', { lot: 2.5 }], ['compare_homes', { level: T.CONDO_LEVELS + 1 }], ['compare_homes', { house: 'castle' }],
     ['ask', { question: '' }], ['ask', { question: 'x' }], ['ask', { question: 'a'.repeat(301) }], ['ask', {}], ['ask', { question: 42 }]]) {
     let refused = false; try { const r = await c.callTool({ name: name, arguments: args }); refused = !!r.isError; } catch (e) { refused = true; }
     assert.ok(refused, name + ' ' + JSON.stringify(args));

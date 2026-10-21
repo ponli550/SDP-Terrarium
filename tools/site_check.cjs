@@ -183,16 +183,18 @@ const figVal = (t) => [...$('figs').querySelectorAll('.fig')].find((f) => f.text
 submitGate('floor@example.com'); $('wizDone').click(); settle();
 ok($('levelRow').hidden, 'a house has no floor control');
 $('house').value = 'condo'; $('house').dispatchEvent(new w.Event('change', { bubbles: true }));
-ok(!$('levelRow').hidden && $('levelV').textContent === 'level 1 of 8', 'choosing a condo asks for the floor, starting at level 1');
+const TOP = w.Terrarium.CONDO_LEVELS;   // the top level of the tower comes from the model
+ok(!$('levelRow').hidden && $('levelV').textContent === 'level 1 of ' + TOP, 'choosing a condo asks for the floor, starting at level 1');
+ok($('level').max === String(TOP) && $('cmpLevel').max === String(TOP) && $('w_level').max === String(TOP), 'every floor slider (page, set-up, compare) goes up to the model\'s top level, ' + TOP);
 const kwhAt = (lv) => { setRange('level', lv); return figVal('Electricity this month'); };
 setRange('trees', 6); setRange('walkShare', 50);
-const k1 = kwhAt(1), k4 = kwhAt(4), k8 = kwhAt(8);
-ok(parseInt(k1) < parseInt(k4) && parseInt(k4) < parseInt(k8), 'a higher floor changes the month: level 1 ' + k1 + ', level 4 ' + k4 + ', level 8 ' + k8);
-ok($('levelV').textContent === 'level 8 of 8' && parseInt(figVal('Walking this month')) > 0, 'the floor reads out as level of eight');
+const k1 = kwhAt(1), k4 = kwhAt(4), k8 = kwhAt(TOP);
+ok(parseInt(k1) < parseInt(k4) && parseInt(k4) < parseInt(k8), 'a higher floor changes the month: level 1 ' + k1 + ', level 4 ' + k4 + ', level ' + TOP + ' ' + k8);
+ok($('levelV').textContent === 'level ' + TOP + ' of ' + TOP && parseInt(figVal('Walking this month')) > 0, 'the floor reads out as level N of the top level');
 setRange('level', 6); ok(stored().users['floor@example.com'].home.level === 6 && stored().users['floor@example.com'].home.house === 'condo', 'the floor is saved with the home');
-w.__terrarium.inspect('home'); ok(/level 6 of 8/.test($('inspect').textContent), 'the home panel names your level'); w.__terrarium.inspect('person'); ok(/Lift or stairs/.test($('inspect').textContent), 'and the walking panel shows the lift time'); w.__terrarium.inspect(null);
+w.__terrarium.inspect('home'); ok(new RegExp('level 6 of ' + TOP).test($('inspect').textContent), 'the home panel names your level'); w.__terrarium.inspect('person'); ok(/Lift or stairs/.test($('inspect').textContent), 'and the walking panel shows the lift time'); w.__terrarium.inspect(null);
 $('editHome').click(); ok(!$('wr_level').hidden && val('w_level') === '6', 'the set-up dialog shows the floor for a condo, with your saved value');
-setW('w_level', 3); ok(val('level') === '3' && $('levelV').textContent === 'level 3 of 8', 'and edits the same floor the page shows');
+setW('w_level', 3); ok(val('level') === '3' && $('levelV').textContent === 'level 3 of ' + TOP, 'and edits the same floor the page shows');
 setW('w_house', 'terrace', 'change'); ok($('wr_level').hidden && $('levelRow').hidden, 'switching to a house hides the floor everywhere');
 setW('w_house', 'condo', 'change'); ok(val('w_level') === '3', 'and switching back remembers it'); $('wizDone').click(); settle();
 $('signOut').click(); submitGate('floor@example.com'); ok(val('house') === 'condo' && val('level') === '3', 'signing back in restores the condo and its floor');
@@ -248,7 +250,7 @@ const farLot = [...Array(12).keys()].sort((x, y) => w.Terrarium.lotDistanceKm(y)
 ok(cmpCell('Distance to the bus stop', 3).textContent === '+' + shownDiff(w.Terrarium.lotInfo(1).km, w.Terrarium.lotInfo(farLot).km) + ' km', 'and a farther one shows a plus');
 ok(cmpCell('Distance to the bus stop', 1).classList.contains('win') && /farther/.test($('cmpSay').textContent), 'a farther lot makes your own home the better one on distance, and the summary says farther');
 ok($('cmpLevelRow').hidden, 'no floor control for a house'); pickB('cmpHouse', 'condo'); ok(!$('cmpLevelRow').hidden && /Condominium, level 1/.test($('cmpTable').textContent), 'choosing a condo asks for its floor');
-pickB('cmpLevel', '4', 'input'); ok(/Condominium, level 4, lot/.test($('cmpTable').textContent) && $('cmpLevelV').textContent === 'level 4 of 8', 'and the floor shows in the table');
+pickB('cmpLevel', '4', 'input'); ok(/Condominium, level 4, lot/.test($('cmpTable').textContent) && $('cmpLevelV').textContent === 'level 4 of ' + TOP, 'and the floor shows in the table');
 ok(cmpCell('Electricity per month', 2).classList.contains('win'), 'the smaller condo uses less electricity and is marked better');
 pickB('cmpHouse', 'terrace'); pickB('cmpLot', '1');
 ok($('cmpApply').disabled && /come out the same/.test($('cmpSay').textContent) && !$('cmpTable').querySelector('.win'), 'option B equal to your home: nothing wins, the summary says so, and there is nothing to apply');

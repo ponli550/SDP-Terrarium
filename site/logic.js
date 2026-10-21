@@ -35,7 +35,7 @@
     condo:   { label: 'Condominium',   baseKwhDay: 6,  acFactor: 0.8 },
   };
 
-  const CONDO_LEVELS = 8;   // the drawn tower has eight levels
+  const CONDO_LEVELS = 35;   // the drawn tower's levels; every slider, the scene and the tests read this one number
   const DEFAULTS = { level: 1, baseScale: 1, house: 'terrace', acHours: 8, setpoint: 24, solarKwp: 0, walkShare: 0.2, trees: 2, nativeShare: 0.2, hotWeek: false };
   const NEIGHBOUR = Object.assign({}, DEFAULTS); // the "neighbour average", illustrative
 
