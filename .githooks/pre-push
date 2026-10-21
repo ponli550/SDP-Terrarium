@@ -1,0 +1,3 @@
+#!/bin/sh
+# Local CI before anything leaves this machine. Skip once, knowingly, with: git push --no-verify
+exec node tools/ci.cjs

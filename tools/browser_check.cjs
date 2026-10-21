@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process'), fs = require('fs'), path = require('path'), assert = require('assert');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!fs.existsSync(CHROME)) { console.log('browser checks skipped: no Chrome at ' + CHROME + ' (set CHROME)'); process.exit(0); }
-const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => fs.rmSync(PROFILE, { recursive: true, force: true }));
+const PROFILE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'terrarium-chrome-')); process.on('exit', () => { try { fs.rmSync(PROFILE, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { /* a just-killed Chrome may still be writing; the OS clears the temp folder */ } });
 const page = 'file://' + path.join(__dirname, '..', 'site', 'index.html');
 // Each run gets its own profile: with a normal Chrome already open, a headless launch on the default profile hands off to it and returns un-run HTML.
 // A dump with no scene state at all means Chrome did not finish (a launch problem), so it is retried (up to eight more times; headless Chrome intermittently returns the un-run page). A failed assertion is never retried.
@@ -83,7 +83,8 @@ ok(g0 > 400 && g0 < 1000, 'the scene holds a sensible number of geometries at re
 ok(g48 < g0 + 150 && Math.abs(g48 - g12) < 150, 'rebuilding the homes 48 times does not grow GPU memory (rest ' + g0 + ', after 12 rebuilds ' + g12 + ', after 48 ' + g48 + '; it was 678, 1873 and 5847 before the fix)');
 const t30 = geoms('walk=0.5&frames=30&day=1&hour=6'), t1800 = geoms('walk=0.5&frames=1800&day=1&hour=6');
 ok(t1800 < t30 + 40, 'walkers and cars coming and going do not leak (' + t30 + ' at the start, ' + t1800 + ' after 1800 frames)');
-ok(hud('throttle=1&frames=120') <= 20 && hud('frames=120') > 100, 'the HUD is rewritten about ten times a second, not every frame (' + hud('throttle=1&frames=120') + ' writes in 120 frames, against ' + hud('frames=120') + ' unthrottled)');
+const hudT = hud('throttle=1&frames=120'), hudU = hud('frames=120');   // relative, because test-mode frames are timer-driven and their spacing is not a real 60 fps
+ok(hudU > 100 && hudT * 5 < hudU, 'the HUD is rewritten far less often than every frame, about ten times a second (' + hudT + ' writes in 120 frames, against ' + hudU + ' unthrottled)');
 
 // placing your lot: a real pointer click on a pad moves the home, and only while placing
 h = dump('place=1&clicklot=5&frames=40&day=1&hour=12'); let pl = JSON.parse(attr(h, 'state'));
@@ -118,18 +119,71 @@ ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in wee
 const RM = ['--force-prefers-reduced-motion'];
 const viewOf = (q, extra) => { const hh = dump(q, extra); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
 let vm = viewOf('house=condo&level=5&lot=0&frames=60');
-ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
+ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true/false', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
 vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === [0, 5, 10, 15, 20, 25, 30, 35].join() && vm.view.roofY === 40 && vm.view.panelsY === 40, 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
-ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
+ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
 ok(vm.view.selfShade === false, 'Exploded: the pulled-apart floors stop shading each other');
 ok(vm.view.ground.shown === true && vm.view.ground.world === true && vm.view.ground.layers === 4 && vm.view.ground.y.join() === [0, -4, -8, -12].join() && vm.view.ground.labels === 5, 'Exploded: the cutaway earth is shown and its four layers (topsoil, subsoil, rock, groundwater) drop one gap each, with their labels and the drawn-not-modelled note (' + vm.view.ground.y.join() + ', ' + vm.view.ground.labels + ' labels)');
 vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.ground.hidden > 20, 'Exploded: the township is put away (' + vm.view.ground.hidden + ' objects hidden)');
 vm = viewOf('house=condo&level=5&lot=0&frames=20&mode=exploded&modelater=8', RM);
-ok(vm.view.mode === 'lab' && vm.view.ground.hidden === 0 && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.neighbours === true && vm.view.ground.labels === 0 && vm.view.floorY.every((y) => y === 0), 'back to Lab: everything that was put away is drawn again, the earth block and its labels are gone, the floors rest (' + vm.view.ground.hidden + ' still hidden)');
+ok(vm.view.mode === 'lab' && vm.view.ground.hidden === 0 && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.neighbours === true && vm.view.ground.labels === 0 && vm.view.studio.turntable === false && vm.view.studio.marker === true && vm.view.floorY.every((y) => y === 0), 'back to Lab: everything that was put away is drawn again, the earth block and its labels are gone, the floors rest (' + vm.view.ground.hidden + ' still hidden)');
+vm = viewOf('house=condo&level=5&lot=0&frames=40&mode=studio');
+ok(vm.view.mode === 'studio' && vm.view.studio.on && vm.view.studio.turntable === true && vm.view.studio.bg === '0e1624' && vm.view.studio.marker === false && vm.view.studio.markerLabel === false && vm.ui.viewBtn === 'false/false/true', 'Studio: a dark backdrop and a turntable, the location marker is put away, Studio is pressed (bg ' + vm.view.studio.bg + ')');
+ok(vm.view.neighbours === false && vm.view.ground.shown === false && vm.view.ground.labels === 0 && vm.view.ground.hidden > 20 && vm.view.floorY.every((y) => y === 0) && vm.view.explode === 0, 'Studio: your home is alone, whole and unexploded, with no ground cutaway (' + vm.view.ground.hidden + ' objects put away)');
+ok(vm.view.studio.rotating === true && vm.view.studio.rotated > 0.005, 'Studio: the camera turns slowly around the home (' + vm.view.studio.rotated + ' rad in 40 frames)');
+vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=studio', RM);
+ok(vm.view.studio.rotating === false && vm.view.studio.rotated === 0, 'Studio: under reduced motion nothing turns');
+vm = viewOf('house=condo&level=5&lot=0&frames=24&mode=studio&modelater=8');
+ok(vm.view.mode === 'lab' && vm.view.studio.turntable === false && vm.view.studio.rotating === false && vm.view.studio.marker === true && vm.view.studio.markerLabel === true && vm.view.studio.bg !== '0e1624' && vm.view.ground.hidden === 0 && vm.view.neighbours === true, 'Studio back to Lab: the township, the marker and the sky return, the turntable and the turning stop');
 vm = viewOf('house=terrace&lot=3&frames=12&mode=exploded', RM);
 ok(vm.view.floors === 2 && vm.view.floorY.join() === '0,4' && vm.view.unitFloor === -1 && vm.view.unitLabelShown === false, 'a terrace explodes into its two storeys and has no unit floor to point at');
 vm = viewOf('house=condo&level=2&lot=0&frames=12&mode=exploded', RM);
 ok(vm.view.unitFloor === 1, 'the highlighted floor follows the level you chose (level 2 is floor index ' + vm.view.unitFloor + ')');
+// scrub and play: the timeline follows the clock, dragging lands on an exact moment and pauses, resuming a game week keeps its end-of-week callback
+const clockOf = (q, extra) => { const hh = dump(q, extra); return { st: JSON.parse(attr(hh, 'state') || '{}'), ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
+let sc = clockOf('house=condo&level=5&lot=0&frames=12&seek=12:14');
+ok(sc.st.day === 12 && sc.st.hour === 14 && sc.st.running === false && sc.ui.scrub.value === 278 && sc.ui.scrub.max === 719 && sc.ui.scrub.out === 'Day 12 \u00b7 14:00' && sc.ui.hudClock.includes('Day 12 \u00b7 14:00'), 'seeking to day 12 at 14:00 lands there, paused, and the timeline (value ' + sc.ui.scrub.value + ' of ' + sc.ui.scrub.max + '), its label and the HUD clock all agree');
+sc = clockOf('house=condo&level=5&lot=0&frames=12&seek=5:8.2&walk=0.5');
+const sc2 = clockOf('house=condo&level=5&lot=0&frames=12&seek=5:12&walk=0.5');
+ok(sc.st.agents >= 1 && sc2.st.agents === 0, 'seeking to just after a trip time puts that trip on the road, and seeking to midday leaves none (' + sc.st.agents + ' and ' + sc2.st.agents + ')');
+sc = clockOf('house=condo&level=5&lot=0&frames=40');
+ok(sc.ui.scrub.value > 0 && Math.abs(sc.ui.scrub.value - ((sc.st.day - 1) * 24 + sc.st.hour)) <= 6, 'while playing, the timeline follows the clock (timeline ' + sc.ui.scrub.value + ', clock day ' + sc.st.day + ' hour ' + sc.st.hour + ')');
+sc = clockOf('house=condo&level=5&lot=0&frames=12&drag=278');
+ok(sc.st.day === 12 && sc.st.hour === 14 && sc.st.running === false && sc.ui.play === 'Play' && sc.ui.hudClock.includes('Day 12 \u00b7 14:00'), 'dragging the timeline to 278 pauses, lands on day 12 at 14:00, shows Play, and updates the HUD (' + sc.st.running + ', ' + sc.ui.play + ')');
+sc = clockOf('autoweek=1&speed=8&walk=0.5&frames=20');
+ok(sc.st.range[1] - sc.st.range[0] === 6 && sc.ui.scrub.max === 167, 'in a game week the timeline spans that week only (' + sc.ui.scrub.max + ' hours)');
+sc = clockOf('autoweek=1&speed=8&walk=0.5&frames=24&pauseplay=8');
+ok(sc.st.hasEnd === true && sc.st.running === true, 'pausing a game week and pressing Play again keeps the end-of-week callback, so the game can still move on');
+// cross-section: Studio only; a tap on the home opens it; labels come from the model's own condo values; everything returns on leaving
+let cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
+const hp = JSON.parse(attr(dump('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&solarKwp=4'), 'state') || '{}').homePos;
+ok(cx.view.cut.on && cx.view.cut.clip === 1 && cx.view.cut.doubleSided && cx.view.cut.interior && cx.view.cut.unitRoom && cx.view.cut.labels === 3 && cx.view.studio.rotating === false && cx.view.selfShade === false && cx.ui.cutBtn === 'true', 'Cross-section: a clipping plane is on, the floors show their drawn insides and your unit, three notes are up (lift, tree shade, drawn-not-modelled), the camera stops turning, the button is pressed (' + cx.view.cut.labels + ' notes)');
+ok(hp && Math.abs(cx.view.cut.planeZ - hp.z) < 0.01, 'the cut goes through the middle of the home (plane z ' + cx.view.cut.planeZ + ', home z ' + (hp && hp.z) + ')');
+cx = viewOf('house=condo&level=8&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
+ok(cx.view.cut.labels === 4, 'on the top level a fourth note, about the heat under the roof, appears (' + cx.view.cut.labels + ')');
+cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&solarKwp=4');
+ok(cx.view.cut.on === false && cx.view.cut.clip === 0 && cx.view.cut.interior === false && cx.view.cut.doubleSided === false && cx.view.cut.labels === 0 && cx.ui.cutBtn === 'false' && cx.view.studio.rotating === true, 'Studio without the cut: no plane, no interior, no notes, the camera turns, the button is offered (not pressed)');
+cx = viewOf('house=condo&level=5&lot=0&frames=30&solarKwp=4&cut=1');
+ok(cx.ui.cutBtn === 'hidden' && cx.view.cut.on === false && cx.view.cut.clip === 0, 'outside Studio there is no Cross-section button, and asking for the cut anyway does nothing');
+cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&clickkind=home&solarKwp=4');
+const cs = JSON.parse(attr(dump('house=condo&level=5&lot=0&frames=30&mode=studio&clickkind=home&solarKwp=4'), 'state') || '{}');
+ok(cs.view && cs.view.cut.on === true, 'a real click on the home in Studio opens the section');
+cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&modelater=10&solarKwp=4');
+ok(cx.view.mode === 'lab' && cx.view.cut.on === false && cx.view.cut.clip === 0 && cx.view.cut.labels === 0 && cx.view.cut.interior === false && cx.view.cut.doubleSided === false && cx.ui.cutBtn === 'hidden', 'leaving Studio closes the section: no plane, no notes, the floors are solid again, the button is gone');
+// phones: no sideways scrolling, nothing lying on top of anything else, thumb-sized targets, at real phone widths (the page in an iframe of exact width; headless Chrome will not make a window narrower than 500 px)
+const phoneUi = (q, w, hgt) => {
+  const url = 'file://' + path.join(__dirname, 'phone.html') + '?w=' + w + '&h=' + (hgt || 844) + '&q=' + encodeURIComponent('shot&' + q);
+  for (let i = 0; i < 9; i++) { const o = spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, url, '--allow-file-access-from-files'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || ''; const u = attr(o, 'ui'); if (u) return JSON.parse(u); }
+  return null;
+};
+const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=condo&level=5&lot=0&frames=12&solarKwp=4'], ['the Analysis page', 'view=analysis&house=condo&level=5&frames=8'], ['the set-up dialog', 'wizard=1&frames=6'], ['Compare', 'compare=1&lot=1&trees=4&frames=6'], ['the first look', 'firstlook=1&frames=6']];
+[[360, 740], [390, 844], [430, 932], [768, 1024]].forEach((wh) => {
+  const bad = [];
+  PHONE_PAGES.forEach((pg) => { const u = phoneUi(pg[1], wh[0], wh[1]); if (!u) bad.push(pg[0] + ': no data'); else { if (u.overflow.vw !== wh[0] && !(u.overflow.vw >= wh[0] - 20)) bad.push(pg[0] + ': viewport ' + u.overflow.vw); if (u.overflow.scroll > 1 || u.overflow.wide.length) bad.push(pg[0] + ': sticks out ' + u.overflow.scroll + 'px (' + u.overflow.wide.slice(0, 3).join(', ') + ')'); if (u.layout.overlaps.length) bad.push(pg[0] + ': overlap ' + u.layout.overlaps.join(', ')); if (wh[0] <= 430 && u.layout.minTap < 36) bad.push(pg[0] + ': a target is only ' + u.layout.minTap + ' px tall'); } });
+  ok(bad.length === 0, 'at ' + wh[0] + ' px wide: no page scrolls sideways, no control lies on another, targets are thumb-sized' + (bad.length ? ' [' + bad.join('; ') + ']' : ''));
+});
+let pm = phoneUi('house=condo&level=5&lot=0&frames=12&solarKwp=4&menu=1', 360, 740);
+ok(pm && pm.overflow.scroll <= 1 && pm.overflow.wide.length === 0 && pm.layout.overlaps.length === 0, 'at 360 px the open account menu fits on the screen');
 console.log('browser checks passed:', n);

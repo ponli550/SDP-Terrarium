@@ -10,7 +10,10 @@
     "test": "node --test tests/model.test.js tests/assistant.test.js tests/profile.test.js tests/mcp.test.mjs && node tools/site_check.cjs",
     "test:browser": "node tools/browser_check.cjs",
     "mcp": "node mcp/server.mjs",
-    "mcp:config": "node mcp/print-config.mjs"
+    "mcp:config": "node mcp/print-config.mjs",
+    "ci": "node tools/ci.cjs",
+    "ci:full": "node tools/ci.cjs --full",
+    "hooks": "git config core.hooksPath .githooks && echo 'git hooks on: pre-push runs npm run ci, commit-msg rejects watermark trailers'"
   },
   "type": "commonjs",
   "devDependencies": {

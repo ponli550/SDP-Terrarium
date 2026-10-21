@@ -2,9 +2,11 @@
 
 **What will living here cost me?** A buyer signs for a home without knowing. The electricity bill, the daily trips and how the house copes with a hot week are all discovered after handover. Today the price and the layout are the only things a buyer can see.
 
-Terrarium lets a buyer live **one simulated month** in an Elmina home first, and scores it on Sime Darby Property's four sustainability pillars: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.** Built for the Sime Darby Property University Hackathon 2026, *Township of Tomorrow*.
+Terrarium lets a buyer live **one simulated month** in an Elmina home first, and scores it on Sime Darby Property's four sustainability pillars: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.** Built by team **SelfDev** for the Sime Darby Property University Hackathon 2026, *Township of Tomorrow*.
 
 **Try it: https://ponli550.github.io/SDP-Terrarium/** (a static page; your home and sign-in stay in your browser)
+
+A preview of what is merged but not yet released: https://ponli550.github.io/SDP-Terrarium/dev/
 
 ![Elmina in 3D: a condo among its neighbours, the bus stop, and the biodiversity corridor](docs/media/lab.png)
 
@@ -24,11 +26,11 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 
 ## What you can do
 
-1. **Sign in** (email only, demo, kept in your browser; or a guest), **set your home**, and place your lot on the township map. A condo is a unit on one of eight floors.
+1. **Log in** (email only, a demo that keeps your home in your browser; or try it as a guest), with **Log out** always one tap away, **set your home**, and place your lot on the township map. A condo is a unit on one of eight floors.
 2. **See your first look**: a checked summary of what a month in this home costs, with one next action.
 3. **Compare** another home type, floor or lot side by side.
-4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home).
-5. **Switch to Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
+4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home). A timeline under the scene lets you drag to any hour of the month, and the figures in the corner follow.
+5. **Switch to Studio** to see your home alone on a turntable (tap it, or press Cross-section, to slice it open: the floors, the lift, your unit, and notes drawn from the model's own condo values), or **Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
 6. **Open Analysis** for the scores against a neighbour, the month chart, every figure with its grade, and **what to change** for the biggest cut.
 7. **After handover**, type the kWh from your real bill and the model matches itself to it.
 
@@ -51,10 +53,15 @@ open site/index.html            # or double-click it; needs a browser with WebGL
 # tests
 npm install
 npm test                        # model, assistant, profile and MCP tests, plus page checks in jsdom
-npm run test:browser            # real-Chrome checks (needs Google Chrome; set CHROME to its path)
+npm run test:browser            # real-Chrome checks, about 10 minutes (needs Google Chrome; set CHROME to its path)
+
+# local CI: there is deliberately no CI on GitHub; the checks run here, before anything is pushed
+npm run ci                      # a few seconds: syntax, tests, no secrets or personal data tracked, no watermark trailers, deck page count
+npm run ci:full                 # the same plus the real-Chrome suite
+npm run hooks                   # turn on the git hooks: pre-push runs `npm run ci`, commit-msg rejects Co-Authored-By trailers
 ```
 
-Without WebGL the page says so and the model, game and scores still work.
+Without WebGL the page says so and the model, game and scores still work. The page is built to work on a phone: the real-browser suite loads every page at 360, 390, 430 and 768 px wide and fails if anything scrolls sideways, lies on top of another control, or has a tap target under 36 px (`tools/phone.html` frames the page at an exact width, because headless Chrome will not open a window narrower than 500 px).
 
 ## How it is built
 
@@ -79,7 +86,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
-**Known gap:** the real-browser suite does not fully complete on every machine. A headless Chrome can hang or return un-run HTML when a normal Chrome is open; `tools/chrome_dump.cjs` works around the hang, but one comparison query still misbehaves on the machine it was developed on.
+**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (93 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
 
 ## Pilot
 

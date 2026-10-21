@@ -11,7 +11,7 @@
   };
   // ---- two pages in one app: Map (the 3D township, the play dock, the chat) and Analysis (habits, scores, chart, figures, bill) ----
   // One document, so a guest's home and a game in progress survive moving between them. The address (#/map, #/analysis) keeps Back and bookmarks working.
-  var view = 'map', viewLaterAt = 0, modeLaterAt = 0;
+  var view = 'map', viewLaterAt = 0, modeLaterAt = 0, pausePlayAt = 0;
   function viewFromHash() { return location.hash === '#/analysis' ? 'analysis' : 'map'; }
   function setView(v) {
     view = v; $('viewMap').hidden = v !== 'map'; $('viewAnalysis').hidden = v !== 'analysis';
@@ -106,7 +106,7 @@
   function finishSetup() { saveProfile(true); closeWizard(); if (firstRun) { firstRun = false; showFirstLook(); } }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
   function closeWizard() { $('wizard').hidden = true; }
-  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Leave' : 'Sign out'; } }
+  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Log in' : 'Log out'; $('signOut').title = session.guest ? 'Leave guest mode and log in with an email' : 'Log out of ' + session.email; } }
   function startSession(s) {
     session = s; firstRun = !!(s.isNew || s.setUp === false); Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
     if (st.billKwh === undefined) st.billKwh = null;
@@ -146,8 +146,11 @@
   $('lotSel').addEventListener('change', function (e) { if (e.target.value !== '') chooseLot(+e.target.value); });
   $('lotConfirm').addEventListener('click', confirmLot);
   $('lotCancel').addEventListener('click', cancelLot);
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); else if (!$('ask').hidden) openChat(false); });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if ($('acct').open) $('acct').open = false; else if (!$('firstLook').hidden) hideFirstLook(); else if (!$('compare').hidden) closeCompare(); else if (placing) cancelLot(); else if (!$('wizard').hidden) finishSetup(); else if (!$('ask').hidden) openChat(false); });
   $('editHome').addEventListener('click', function () { if (!g) openWizard(); });
+  // the account menu closes when you choose something in it, press Escape, or click anywhere else
+  $('acct').addEventListener('click', function (e) { if (e.target.closest('.acctmenu button')) $('acct').open = false; });
+  document.addEventListener('click', function (e) { if ($('acct').open && !$('acct').contains(e.target)) $('acct').open = false; });
   $('signOut').addEventListener('click', function () {
     store.signOut(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
@@ -161,7 +164,7 @@
   try {
     if (!window.THREE || !window.Scene3D) throw new Error('3D scripts not loaded');
     var q = new URLSearchParams(location.search), shot = q.has('shot');
-    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (modeLaterAt && f === modeLaterAt) scene.setViewMode('lab'); if (viewLaterAt && f === viewLaterAt) go('map'); if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onViewMode: syncViewButtons, onShotDone: snapshotUi, stopIdle: /[?&]stopidle\b/.test(location.search), onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
+    scene = window.Scene3D.create($('stage'), T, { onClock: onClock, extraState: function () { return { hudWrites: hudWrites, rebuilds: rebuilds }; }, onFrame: function (f) { if (pausePlayAt && f === pausePlayAt) { scene.pause(); scene.play(); } if (modeLaterAt && f === modeLaterAt) scene.setViewMode('lab'); if (viewLaterAt && f === viewLaterAt) go('map'); if (stressN && f % 4 === 0 && rebuilds < stressN) { st.lot = rebuilds % 12; if (rebuilds % 3 === 0) st.house = ['terrace', 'semid', 'condo'][(rebuilds / 3) % 3]; rebuilds++; render(); } }, onViewMode: syncViewButtons, onCut: syncCutButton, onShotDone: snapshotUi, stopIdle: /[?&]stopidle\b/.test(location.search), onInspect: onInspect, onLotPick: function (i) { chooseLot(i); }, onLotHover: function (i) { lotRead(i); }, clickLot: q.get('clicklot') !== null ? +q.get('clicklot') : undefined, clickKind: q.get('clickkind') || '', picks: q.get('picks') ? q.get('picks').split(',') : null, wheel: +q.get('wheel') || 0, preserve: shot, fixedStep: shot ? 0.05 : 0, maxFrames: shot ? +(q.get('frames') || 90) : 0 });
   } catch (e) {
     var m = document.createElement('div'); m.className = 'nowebgl'; m.id = 'nowebgl';
     m.innerHTML = '<div><b>The 3D view needs WebGL.</b><br>The model, the game and the scores still work below.</div>';
@@ -194,6 +197,7 @@
     var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
     // the clock moves every frame but the text only needs to change about ten times a second
     var nowMs = performance.now(); if (scene && (!SHOT || THROTTLE_HUD) && nowMs - lastHudAt < 100) return; lastHudAt = nowMs;
+    syncScrub(day, hour);
     var clockHtml = '<b>Day ' + day + ' &middot; ' + ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2) + '</b><br><span class="wx ' + wx.label.split(' ')[0] + '">' + wx.label + ' &middot; ' + wx.temp.toFixed(0) + ' C</span>';
     var figsHtml =
       '<div><small>Electricity today</small><b>' + kwhToday.toFixed(1) + ' kWh</b></div>' +
@@ -358,12 +362,34 @@
   document.querySelectorAll('[data-speed]').forEach(function (b) {
     b.addEventListener('click', function () { speed = +b.dataset.speed; if (scene) scene.setSpeed(speed); document.querySelectorAll('[data-speed]').forEach(function (x) { x.classList.toggle('on', x === b); }); });
   });
-  $('play').addEventListener('click', function () { if (!scene) return; if (scene.isRunning()) { scene.pause(); $('play').textContent = 'Play'; $('play').classList.remove('on'); } else { scene.play(); $('play').textContent = 'Pause'; $('play').classList.add('on'); } });
-  function syncViewButtons(m) { [['viewLab', 'lab'], ['viewExploded', 'exploded']].forEach(function (b) { var el = $(b[0]); el.classList.toggle('on', m === b[1]); el.setAttribute('aria-pressed', m === b[1] ? 'true' : 'false'); }); }
+  // the timeline: drag to any hour of the month (or of the week being played); dragging pauses, Play resumes from there
+  var scrubbing = false, scrubEl = $('scrub');
+  function clockText(day, hour) { var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60); return 'Day ' + day + ' \u00b7 ' + ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2); }
+  function syncScrub(day, hour) {
+    if (!scene || scrubbing) return;
+    var r = scene.getRange(), max = (r.to - r.from + 1) * 24 - 1;
+    if (+scrubEl.max !== max) scrubEl.max = max;
+    scrubEl.value = Math.round((day - r.from) * 24 + hour);
+    $('scrubOut').textContent = clockText(day, hour); scrubEl.setAttribute('aria-valuetext', $('scrubOut').textContent);
+  }
+  function setPlayUi(on) { $('play').textContent = on ? 'Pause' : 'Play'; $('play').classList.toggle('on', on); }
+  scrubEl.addEventListener('input', function () {
+    if (!scene) return;
+    var r = scene.getRange(), v = +scrubEl.value, day = r.from + Math.floor(v / 24), hour = v % 24;
+    scene.pause(); setPlayUi(false); lastHudAt = 0; scene.seek(day, hour);
+    $('scrubOut').textContent = clockText(day, hour); scrubEl.setAttribute('aria-valuetext', $('scrubOut').textContent);
+  });
+  scrubEl.addEventListener('pointerdown', function () { scrubbing = true; });
+  ['pointerup', 'pointercancel', 'change', 'blur'].forEach(function (ev) { scrubEl.addEventListener(ev, function () { scrubbing = false; }); });
+  $('play').addEventListener('click', function () { if (!scene) return; if (scene.isRunning()) { scene.pause(); setPlayUi(false); } else { scene.play(); setPlayUi(true); } });
+  function syncCutButton(on) { $('cutBtn').classList.toggle('on', on); $('cutBtn').setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  $('cutBtn').addEventListener('click', function () { if (scene) scene.setCut(!scene.cutOn()); });
+  function syncViewButtons(m) { $('cutBtn').hidden = m !== 'studio'; [['viewLab', 'lab'], ['viewExploded', 'exploded'], ['viewStudio', 'studio']].forEach(function (b) { var el = $(b[0]); el.classList.toggle('on', m === b[1]); el.setAttribute('aria-pressed', m === b[1] ? 'true' : 'false'); }); }
   $('viewLab').addEventListener('click', function () { if (scene) scene.setViewMode('lab'); });
   $('viewExploded').addEventListener('click', function () { if (scene) scene.setViewMode('exploded'); });
+  $('viewStudio').addEventListener('click', function () { if (scene) scene.setViewMode('studio'); });
   $('follow').addEventListener('click', function () {
-    if (!scene) return; if (!scene.isFollowing() && scene.viewMode() === 'exploded') scene.setViewMode('lab'); var on = !scene.isFollowing(), r = scene.follow(on);
+    if (!scene) return; if (!scene.isFollowing() && scene.viewMode() !== 'lab') scene.setViewMode('lab'); var on = !scene.isFollowing(), r = scene.follow(on);
     $('follow').textContent = on ? 'Stop following' : 'Follow a trip'; $('follow').classList.toggle('on', on);
     if (on && r.note) $('legend').textContent = r.note;
   });
@@ -389,7 +415,8 @@
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
-  if (SHOT && q0.has('modelater')) modeLaterAt = +q0.get('modelater');   // go back to Lab at this frame
+  if (SHOT && q0.has('modelater')) modeLaterAt = +q0.get('modelater');
+  if (SHOT && q0.has('pauseplay')) pausePlayAt = +q0.get('pauseplay');   // pause then resume at this frame   // go back to Lab at this frame
   if (SHOT && q0.has('viewtimer')) setTimeout(function () { go('map'); }, +q0.get('viewtimer'));      // switch back by the clock, for the real stop-and-restart test
   if (SHOT && q0.has('dumpafter')) setTimeout(function () { if (scene) scene.shotNow(); }, +q0.get('dumpafter'));   // take the snapshot at a chosen moment
   if (SHOT && q0.has('mcpserver')) { $('mcpServer').value = q0.get('mcpserver'); $('mcpHome').value = q0.get('mcphome') || ''; if (q0.get('mcpclient')) $('mcpClient').value = q0.get('mcpclient'); if (q0.get('mcpnode')) $('mcpNode').value = q0.get('mcpnode'); if (q0.get('mcpdefaults')) $('mcpDefaults').checked = true; connectView(); }
@@ -410,7 +437,26 @@
       var right = col.getBoundingClientRect().right; [].forEach.call(col.children, function (c) { worst = Math.max(worst, c.getBoundingClientRect().right - right); });
     }); return Math.round(worst * 10) / 10;
   }
-  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
+  // sideways overflow, for phones: how far the page is wider than the screen, and which visible things stick out past it (ignoring anything inside a box that scrolls on its own)
+  function overflowInfo() {
+    var vw = document.documentElement.clientWidth, out = [];
+    [].forEach.call(document.querySelectorAll('body *'), function (e) {
+      var r = e.getBoundingClientRect(); if (!r.width || r.right <= vw + 1 || e.closest('[hidden]')) return;
+      var cs = getComputedStyle(e); if (cs.position === 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return;
+      for (var p = e.parentElement; p && p !== document.body; p = p.parentElement) { var o = getComputedStyle(p).overflowX; if ((o === 'auto' || o === 'scroll' || o === 'hidden') && p.getBoundingClientRect().right <= vw + 1) return; }
+      out.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ')[0] : '') + ' +' + Math.round(r.right - vw));
+    });
+    return { vw: vw, scroll: document.documentElement.scrollWidth - vw, wide: out.slice(0, 12) };
+  }
+  // which Map controls lie on top of each other, and the smallest thing a finger has to hit
+  function layoutInfo() {
+    var R = function (sel) { var e = typeof sel === 'string' ? document.querySelector(sel) : sel; if (!e || e.closest('[hidden]')) return null; var r = e.getBoundingClientRect(); return r.width && r.height ? r : null; };
+    var parts = { figs: R('#hudFigs'), clock: R('#hudClock'), dock: R('#dock'), place: R('#placeBar'), scrub: R('#scrubBar'), buttons: R('.hud-bl'), chat: R('#chat'), legend: R('#legend') }, over = [], names = Object.keys(parts);
+    for (var i = 0; i < names.length; i++) for (var j = i + 1; j < names.length; j++) { var a = parts[names[i]], b = parts[names[j]]; if (a && b && !(a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1)) over.push(names[i] + '/' + names[j]); }
+    var tap = 999; [].forEach.call(document.querySelectorAll('.hud button, header button, header summary'), function (b) { var r = R(b); if (r) tap = Math.min(tap, Math.round(r.height)); });
+    return { overlaps: over, minTap: tap === 999 ? null : tap };
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
@@ -418,5 +464,9 @@
     if (q0.has('shot') && q0.has('inspect')) scene.select(q0.get('inspect'));
     if (q0.has('shot') && q0.get('mode')) scene.setViewMode(q0.get('mode'));
     if (q0.has('shot') && q0.has('follow')) { scene.follow(true); $('follow').textContent = 'Stop following'; $('follow').classList.add('on'); } }
+  if (SHOT && q0.has('seek') && scene) { var sk = q0.get('seek').split(':'); scene.pause(); setPlayUi(false); scene.seek(+sk[0], +sk[1]); }   // paused at day:hour
+  if (SHOT && q0.has('menu')) $('acct').open = true;   // the account menu open, to check it fits the screen
+  if (SHOT && q0.get('cut') && scene) scene.setCut(true);   // Studio with the section open
+  if (SHOT && q0.has('drag') && scene) { scrubEl.value = q0.get('drag'); scrubEl.dispatchEvent(new Event('input', { bubbles: true })); }   // the same event a drag fires
   window.__terrarium = { go: go, view: function () { return view; }, openChat: openChat, hudWrites: function () { return hudWrites; }, inspect: onInspect, scene: function () { return scene; }, state: function () { return { g: g, anim: anim, clockDay: clockDay }; } };
 })();
