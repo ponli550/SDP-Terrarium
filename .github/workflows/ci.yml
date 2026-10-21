@@ -1,0 +1,40 @@
+# Tests on every pull request and on pushes to main and develop.
+#   test    : unit, assistant, profile and MCP tests plus the jsdom page checks (about 20 seconds). Runs automatically.
+#   browser : the real-Chrome suite (about ten minutes). Manual (Run workflow), not required: it was developed on macOS and has not
+#             been proven on the Linux runner, and a flaky red cross on every pull request would teach people to ignore it.
+name: CI
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  browser:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: CHROME="$(command -v google-chrome || command -v chromium)" npm run test:browser
