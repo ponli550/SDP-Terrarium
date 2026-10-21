@@ -476,7 +476,7 @@
         if (hooks.clickKind) { api.debugClickKind(hooks.clickKind); renderer.render(scene, camera); }
         if (hooks.picks) { var res = {}; hooks.picks.forEach(function (k) { res[k] = debugPick(k); }); document.body.dataset.picks = JSON.stringify(res); }
         var nt = newestAgent();
-        document.body.dataset.state = JSON.stringify({ active: active, looping: looping, pending: pending, canvas: [renderer.domElement.width, renderer.domElement.height], agents: agents.length, following: following, view: viewState(), day: clock.day, camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
+        document.body.dataset.state = JSON.stringify({ active: active, looping: looping, pending: pending, canvas: [renderer.domElement.width, renderer.domElement.height], agents: agents.length, following: following, view: viewState(), day: clock.day, hour: Math.round(clock.hour * 100) / 100, running: running, hasEnd: !!onEnd, range: [range.from, range.to], camToAgent: nt ? Math.round(camera.position.distanceTo(nt.position)) : null, camToHome: Math.round(camera.position.distanceTo(DEFAULT_TGT)), reduce: reduce, zoom: Object.assign(shotZoom, { end: camera.position.distanceTo(controls.target) }), extra: hooks.extraState ? hooks.extraState() : null, perf: { frames: perf.frames, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), labelsMsPerFrame: perf.labelsMs / Math.max(1, perf.frames), geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : null }, homePos: { x: HOME_POS.x, z: HOME_POS.z }, unitY: mine ? mine.userData.unitY : null, padHits: padHits, neighbours: neigh.children.filter(function (c) { return c.userData.lot !== undefined; }).length, neighAtHome: neigh.children.filter(function (c) { return c.userData.lot === currentLot; }).length, lot: currentLot, placing: placing, padsVisible: pads.filter(function (p) { return p.visible; }).length, selectedKind: selected ? selected.userData.inspect : null, targetToSel: selected ? Math.round(10 * controls.target.distanceTo(new THREE.Box3().setFromObject(selected).getCenter(new THREE.Vector3()))) / 10 : null, selDist: selected ? Math.round(camera.position.distanceTo(controls.target)) : null });
         try { var img = document.createElement('img'); img.id = 'shotimg'; img.src = renderer.domElement.toDataURL('image/png'); document.body.appendChild(img); } catch (e) { document.body.dataset.shotError = String(e); }
     }
     function frame(now) {
@@ -547,9 +547,16 @@
       setSpeed: function (s) { speed = s; },
       setRange: function (from, to, loop) { range = { from: from, to: to, loop: !!loop }; },
       jumpTo: function (day, hour) { clock.day = day; clock.hour = hour == null ? 6 : hour; emit(); },
-      play: function (cb) { onEnd = cb || null; running = true; },
+      play: function (cb) { if (cb) onEnd = cb; running = true; },   // resuming after a pause must keep the week-end callback
       pause: function () { running = false; },
       isRunning: function () { return running; },
+      getRange: function () { return { from: range.from, to: range.to }; },
+      // jump the clock to a moment: moving trips are cleared, and a trip that would be under way at that moment is put on the road
+      seek: function (day, hour) {
+        agents.forEach(function (a) { scene.remove(a.obj); disposeTree(a.obj); }); agents = []; clock.day = day; clock.hour = hour;
+        if (input) [8, 17.5].forEach(function (h) { if (hour >= h && hour < h + 0.6) T.tripsOnDay(day, input).forEach(function (t) { if (t.hour === h) spawnTrip(t.mode, t.index); }); });
+        emit();
+      },
       skipTo: function (day) { agents.forEach(function (a) { scene.remove(a.obj); disposeTree(a.obj); }); agents = []; clock.day = day; clock.hour = 23.99; var f = onEnd; onEnd = null; running = false; if (f) f(); emit(); },
       clock: function () { return { day: clock.day, hour: clock.hour }; },
       setActive: function (on) { on = !!on; if (on === active) return; active = on; if (on) { prevT = 0; if (!looping) { looping = true; schedule(); } } },

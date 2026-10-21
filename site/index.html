@@ -56,6 +56,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .hud-tl{top:10px;left:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;min-width:230px}.hud-tl b{display:block;font-size:17px}.hud-tl small{color:#5b6b5f}
 .hud-tr{top:10px;right:10px;text-align:right}.hud-tr b{font-size:18px}
 .hud-bl{bottom:10px;left:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hud-bc{left:10px;bottom:50px;width:min(560px,calc(100% - 20px));display:flex;gap:12px;align-items:center;padding:6px 12px}.hud-bc input{flex:1;min-width:0;accent-color:var(--g1,#2e6b34)}.hud-bc output{font:600 12px system-ui;white-space:nowrap;min-width:92px;text-align:right}
 .hud-br{bottom:10px;right:10px}
 .hud button{background:#fff;color:#16241a;border:1px solid rgba(0,0,0,.15)}.hud button.on{background:#2e6b34;color:#fff}
 .wx{display:inline-block;padding:2px 9px;border-radius:99px;background:#e8f3df;margin-top:4px}.wx.Heat{background:#ffd9a8}.wx.Rain{background:#cfe3f1}
@@ -144,6 +145,12 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
       <div class="hud hud-tl panel" id="hudFigs"></div>
       <div class="hud hud-tr panel" id="hudClock"></div>
       <div class="hud panel insp" id="inspect" hidden></div>
+      <div class="hud hud-bc panel" id="scrubBar">
+        <label for="scrub" class="sr">Day and hour of the month</label>
+        <input id="scrub" type="range" min="0" max="719" step="1" value="0" list="scrubTicks" aria-label="Day and hour of the month">
+        <datalist id="scrubTicks"><option value="0"></option><option value="168"></option><option value="336"></option><option value="504"></option></datalist>
+        <output id="scrubOut" for="scrub">Day 1 &middot; 06:00</output>
+      </div>
       <div class="hud hud-bl">
         <button id="viewLab" class="on" aria-pressed="true" title="The township">Lab</button><button id="viewExploded" aria-pressed="false" title="Pull your home apart, floor by floor">Exploded</button><button id="viewStudio" aria-pressed="false" title="Your home alone on a turntable">Studio</button>
         <button id="play" class="on">Pause</button>
