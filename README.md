@@ -26,7 +26,7 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 
 ## What you can do
 
-1. **Log in** (email only, a demo that keeps your home in your browser; or try it as a guest), with **Log out** always one tap away, **set your home**, and place your lot on the township map. A condo is a unit on one of eight floors.
+1. **Log in** (email only, a demo that keeps your home in your browser; or try it as a guest), with **Log out** always one tap away, **set your home**, and place your lot on the township map. A condo is a unit on one of 35 levels; the tower, the sliders and the cameras all read that one number, so it can change in one place.
 2. **See your first look**: a checked summary of what a month in this home costs, with one next action.
 3. **Compare** another home type, floor or lot side by side.
 4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home). A timeline under the scene lets you drag to any hour of the month, and the figures in the corner follow.
@@ -86,7 +86,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
-**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (93 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
+**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (98 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
 
 ## Pilot
 

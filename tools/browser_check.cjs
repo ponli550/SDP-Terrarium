@@ -11,6 +11,9 @@ const page = 'file://' + path.join(__dirname, '..', 'site', 'index.html');
 const dump = (query, extra) => { let h = dumpOnce(query, extra); for (let i = 0; i < 8 && /frames=/.test(query) && !(/data-state=/.test(h) && /data-ui=/.test(h)); i++) h = dumpOnce(query, extra); return h; };
 const dumpOnce = (query, extra) => spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, page + '?shot&' + query].concat(extra || []), { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || '';
 const attr = (h, name) => { const m = h.match(new RegExp('data-' + name + '="([^"]*)"')); return m ? m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&') : null; };
+const LEVELS = require('../site/logic.js').CONDO_LEVELS;   // the tower's levels, from the model
+const GAP = Math.max(1.5, Math.min(5, 90 / LEVELS));      // how far apart Exploded pulls each floor (the scene's own rule)
+const r1 = (x) => Math.round(x * 10) / 10;
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 
 let h = dump('picks=home,neighbour,stop,bus,corridor,solar,occluded&solarKwp=4&walk=0.5&frames=12&day=1&hour=7.9');
@@ -119,9 +122,9 @@ ok(/Week 2 of 4: Heat spell/.test(h) && /Week 1<\/td>/.test(h), 'a locked-in wee
 const RM = ['--force-prefers-reduced-motion'];
 const viewOf = (q, extra) => { const hh = dump(q, extra); return { view: (JSON.parse(attr(hh, 'state') || '{}')).view, ui: JSON.parse(attr(hh, 'ui') || '{}') }; };
 let vm = viewOf('house=condo&level=5&lot=0&frames=60');
-ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === 8 && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true/false', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
+ok(vm.view.mode === 'lab' && vm.view.selfShade === true && vm.view.explode === 0 && vm.view.floors === LEVELS && vm.view.floorY.every((y) => y === 0) && vm.view.roofY === 0 && vm.view.neighbours === true && vm.view.ground.shown === false && vm.view.ground.world === false && vm.view.ground.labels === 0 && vm.ui.viewBtn === 'false/true/false', 'Lab: the eight floors rest stacked, the roof is down, the neighbours are drawn, Lab is pressed');
 vm = viewOf('house=condo&level=5&lot=0&frames=12&mode=exploded', RM);
-ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === [0, 5, 10, 15, 20, 25, 30, 35].join() && vm.view.roofY === 40 && vm.view.panelsY === 40, 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
+ok(vm.view.mode === 'exploded' && vm.view.explode === 1 && vm.view.floorY.join() === Array.from({ length: LEVELS }, (_, i) => r1(i * GAP)).join() && vm.view.roofY === r1(LEVELS * GAP) && vm.view.panelsY === r1(LEVELS * GAP), 'Exploded: each floor is lifted one gap above the one below it, and the roof and solar panels go with the top (' + vm.view.floorY.join() + ' / roof ' + vm.view.roofY + ')');
 ok(vm.view.neighbours === false && vm.view.unitFloor === 4 && vm.view.unitLabelShown === true && vm.ui.viewBtn === 'true/false/false', 'Exploded: the neighbours are hidden, level 5 is the highlighted floor and is labelled, and Exploded is pressed');
 ok(vm.view.selfShade === false, 'Exploded: the pulled-apart floors stop shading each other');
 ok(vm.view.ground.shown === true && vm.view.ground.world === true && vm.view.ground.layers === 4 && vm.view.ground.y.join() === [0, -4, -8, -12].join() && vm.view.ground.labels === 5, 'Exploded: the cutaway earth is shown and its four layers (topsoil, subsoil, rock, groundwater) drop one gap each, with their labels and the drawn-not-modelled note (' + vm.view.ground.y.join() + ', ' + vm.view.ground.labels + ' labels)');
@@ -156,12 +159,23 @@ sc = clockOf('autoweek=1&speed=8&walk=0.5&frames=20');
 ok(sc.st.range[1] - sc.st.range[0] === 6 && sc.ui.scrub.max === 167, 'in a game week the timeline spans that week only (' + sc.ui.scrub.max + ' hours)');
 sc = clockOf('autoweek=1&speed=8&walk=0.5&frames=24&pauseplay=8');
 ok(sc.st.hasEnd === true && sc.st.running === true, 'pausing a game week and pressing Play again keeps the end-of-week callback, so the game can still move on');
+// a tall tower: the whole building is in the frame (its corners project inside the screen), the camera steps back, the cutaway looks at your floor
+let tw = viewOf('house=condo&level=' + LEVELS + '&lot=0&frames=24&solarKwp=4');
+ok(tw.view.framing.towerH > 100 && tw.view.framing.inView === true && tw.view.framing.camDist > 180 && tw.view.framing.tgtY > 40, 'Lab: a ' + LEVELS + '-level tower (' + tw.view.framing.towerH + ' units tall) is wholly in the frame, with the camera stepped back (distance ' + tw.view.framing.camDist + ', aimed at height ' + tw.view.framing.tgtY + ')');
+tw = viewOf('house=terrace&lot=3&frames=24&solarKwp=4');
+ok(tw.view.framing.inView === true && Math.abs(tw.view.framing.camDist - 124) <= 4 && tw.view.framing.tgtY === 0, 'Lab: a house keeps the original camera (distance ' + tw.view.framing.camDist + ', aimed at height ' + tw.view.framing.tgtY + ')');
+tw = viewOf('house=condo&level=' + LEVELS + '&lot=0&frames=14&mode=exploded', RM);
+ok(tw.view.framing.inView === true && tw.view.floorY.length === LEVELS, 'Exploded: all ' + LEVELS + ' floors and the roof fit in the frame (camera ' + tw.view.framing.camDist + ' away)');
+tw = viewOf('house=condo&level=' + LEVELS + '&lot=0&frames=14&mode=studio', RM);
+ok(tw.view.framing.inView === true, 'Studio: the whole tower is in the frame');
+tw = viewOf('house=condo&level=20&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
+ok(Math.abs(tw.view.framing.tgtY - tw.view.framing.unitY) <= 1.5, 'cross-section of a tall tower: the camera looks at your own floor (aimed at ' + tw.view.framing.tgtY + ', your unit at ' + tw.view.framing.unitY + ')');
 // cross-section: Studio only; a tap on the home opens it; labels come from the model's own condo values; everything returns on leaving
 let cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
 const hp = JSON.parse(attr(dump('house=condo&level=5&lot=0&frames=30&mode=studio&cut=1&solarKwp=4'), 'state') || '{}').homePos;
 ok(cx.view.cut.on && cx.view.cut.clip === 1 && cx.view.cut.doubleSided && cx.view.cut.interior && cx.view.cut.unitRoom && cx.view.cut.labels === 3 && cx.view.studio.rotating === false && cx.view.selfShade === false && cx.ui.cutBtn === 'true', 'Cross-section: a clipping plane is on, the floors show their drawn insides and your unit, three notes are up (lift, tree shade, drawn-not-modelled), the camera stops turning, the button is pressed (' + cx.view.cut.labels + ' notes)');
 ok(hp && Math.abs(cx.view.cut.planeZ - hp.z) < 0.01, 'the cut goes through the middle of the home (plane z ' + cx.view.cut.planeZ + ', home z ' + (hp && hp.z) + ')');
-cx = viewOf('house=condo&level=8&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
+cx = viewOf('house=condo&level=' + LEVELS + '&lot=0&frames=30&mode=studio&cut=1&solarKwp=4');
 ok(cx.view.cut.labels === 4, 'on the top level a fourth note, about the heat under the roof, appears (' + cx.view.cut.labels + ')');
 cx = viewOf('house=condo&level=5&lot=0&frames=30&mode=studio&solarKwp=4');
 ok(cx.view.cut.on === false && cx.view.cut.clip === 0 && cx.view.cut.interior === false && cx.view.cut.doubleSided === false && cx.view.cut.labels === 0 && cx.ui.cutBtn === 'false' && cx.view.studio.rotating === true, 'Studio without the cut: no plane, no interior, no notes, the camera turns, the button is offered (not pressed)');

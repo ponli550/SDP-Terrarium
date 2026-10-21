@@ -37,7 +37,7 @@
   var WIZ = [['house', 'Home'], ['level', 'Your floor (level 1 is the ground floor)', 1, 8, 1, ''], ['acHours', 'Air-con hours at night', 0, 12, 1, ' h'], ['setpoint', 'Setpoint', 22, 28, 1, ' C'], ['solarKwp', 'Rooftop solar', 0, 8, 1, ' kWp'], ['trees', 'Trees on your plot', 0, 10, 1, ''], ['nativeShare', 'Native planting', 0, 100, 10, '%']];
   function wizardHtml() {
     return WIZ.map(function (f) {
-      if (f[0] === 'level') return '<div id="wr_level" hidden><label for="w_level">' + f[1] + ' <span id="w_levelV"></span></label><input type="range" id="w_level" min="1" max="8" step="1"></div>';
+      if (f[0] === 'level') return '<div id="wr_level" hidden><label for="w_level">' + f[1] + ' <span id="w_levelV"></span></label><input type="range" id="w_level" min="1" max="' + T.CONDO_LEVELS + '" step="1"></div>';
       if (f[0] === 'house') return '<label for="w_house">' + f[1] + '</label><select id="w_house">' + Object.keys(T.HOUSES).map(function (k) { return '<option value="' + k + '">' + T.HOUSES[k].label + '</option>'; }).join('') + '</select>';
       return '<label for="w_' + f[0] + '">' + f[1] + ' <span id="w_' + f[0] + 'V"></span></label><input type="range" id="w_' + f[0] + '" min="' + f[2] + '" max="' + f[3] + '" step="' + f[4] + '">';
     }).join('');
@@ -157,6 +157,7 @@
     closeWizard(); showChip(); render(); showGate();
   });
 
+  ['level', 'cmpLevel'].forEach(function (id) { $(id).max = T.CONDO_LEVELS; });   // the levels come from the model, not from the page
   var sel = $('house');
   Object.keys(T.HOUSES).forEach(function (k) { var o = document.createElement('option'); o.value = k; o.textContent = T.HOUSES[k].label; sel.appendChild(o); });
 

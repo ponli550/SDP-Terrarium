@@ -370,7 +370,7 @@ test('plot trees shade only the lowest levels: level 1 benefits, level 4 and abo
 });
 test('only the top floor pays for the roof, by the stated factor on the air-con share', () => {
   assert.strictEqual(kwh({ level: 4, trees: 0 }), kwh({ level: 7, trees: 0 }));
-  const top = kwh({ level: 8, trees: 0 }), below = kwh({ level: 7, trees: 0 }), base = T.HOUSES.condo.baseKwhDay * 30;
+  const top = kwh({ level: T.CONDO_LEVELS, trees: 0 }), below = kwh({ level: T.CONDO_LEVELS - 1, trees: 0 }), base = T.HOUSES.condo.baseKwhDay * 30;
   assert.ok(Math.abs((top - base) / (below - base) - (1 + T.ASSUME.roofHeat.v)) < 1e-9);
 });
 test('walking minutes grow with the level by exactly the lift time; trips, car cost and carbon do not move', () => {
@@ -382,11 +382,11 @@ test('walking minutes grow with the level by exactly the lift time; trips, car c
   }
   assert.ok(f(8).walkMin.value > f(1).walkMin.value);
 });
-test('a bad level is clamped to a real floor: nothing breaks and the answer is a floor between 1 and 8', () => {
-  assert.strictEqual(kwh({ level: 0 }), kwh({ level: 1 })); assert.strictEqual(kwh({ level: 99 }), kwh({ level: 8 }));
+test('a bad level is clamped to a real floor: nothing breaks and the answer is a floor between 1 and the top level', () => {
+  assert.strictEqual(kwh({ level: 0 }), kwh({ level: 1 })); assert.strictEqual(kwh({ level: 999 }), kwh({ level: T.CONDO_LEVELS }));
   assert.strictEqual(kwh({ level: 2.6 }), kwh({ level: 3 }));
   for (const bad of [NaN, 'x', null, undefined, -4]) assert.ok(isFinite(kwh({ level: bad })) && kwh({ level: bad }) === kwh({ level: 1 }), String(bad));
-  assert.strictEqual(T.CONDO_LEVELS, 8);
+  assert.strictEqual(T.CONDO_LEVELS, 35);   // the drawn tower; everything else reads this number
 });
 test('the level does not change who the neighbour is, and the neighbour comparison still centres on 50', () => {
   const s = T.scores(condo({ level: 8 })); assert.strictEqual(s.neighbour.figures.monthKwh.value, T.simulate(T.NEIGHBOUR).figures.monthKwh.value);
@@ -394,7 +394,7 @@ test('the level does not change who the neighbour is, and the neighbour comparis
 });
 test('the home and walking panels show the level and the lift time for a condo, and not for a house', () => {
   const row = (i, k, r) => T.inspectInfo(k, i, { day: 2, hour: 10 }).rows.find((x) => x.k === r);
-  assert.strictEqual(row(condo({ level: 8 }), 'home', 'Level').v, 'level 8 of 8, under the roof'); assert.strictEqual(row(condo({ level: 3 }), 'home', 'Level').v, 'level 3 of 8');
+  assert.strictEqual(row(condo({ level: T.CONDO_LEVELS }), 'home', 'Level').v, 'level ' + T.CONDO_LEVELS + ' of ' + T.CONDO_LEVELS + ', under the roof'); assert.strictEqual(row(condo({ level: 3 }), 'home', 'Level').v, 'level 3 of ' + T.CONDO_LEVELS);
   assert.strictEqual(row(T.DEFAULTS, 'home', 'Level').v, 'ground (a house)');
   assert.strictEqual(row(condo({ level: 8 }), 'person', 'Lift or stairs, each way').v, (T.ASSUME.liftMin.v + T.ASSUME.liftPerLevel.v * 8).toFixed(1) + ' min');
   assert.strictEqual(row(condo({ level: 8 }), 'person', 'Lift or stairs, each way').grade, 'ILLUSTRATIVE'); assert.strictEqual(row(T.DEFAULTS, 'person', 'Lift or stairs, each way'), undefined);
@@ -444,7 +444,7 @@ test('differences smaller than the shown precision count as a tie, never as a wi
 });
 test('the labels say the home type, the floor of a condo, and whether a lot is placed', () => {
   assert.strictEqual(T.homeLabel({ house: 'terrace', lot: 5 }), 'Terrace house, lot 6'); assert.strictEqual(T.homeLabel({ house: 'condo', level: 8, lot: 0 }), 'Condominium, level 8, lot 1');
-  assert.strictEqual(T.homeLabel({ house: 'semid' }), 'Semi-D house, lot not placed'); assert.strictEqual(T.homeLabel({ house: 'condo', level: 99, lot: 99 }), 'Condominium, level 8, lot not placed');
+  assert.strictEqual(T.homeLabel({ house: 'semid' }), 'Semi-D house, lot not placed'); assert.strictEqual(T.homeLabel({ house: 'condo', level: 999, lot: 99 }), 'Condominium, level ' + T.CONDO_LEVELS + ', lot not placed');
   assert.ok(!/level/.test(T.homeLabel({ house: 'terrace', level: 5, lot: 2 })));
 });
 test('the nearest other lot is the nearest by distance, never the one you are on', () => {
