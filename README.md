@@ -2,7 +2,7 @@
 
 **What will living here cost me?** A buyer signs for a home without knowing. The electricity bill, the daily trips and how the house copes with a hot week are all discovered after handover. Today the price and the layout are the only things a buyer can see.
 
-Terrarium lets a buyer live **one simulated month** in an Elmina home first, and scores it on Sime Darby Property's four sustainability pillars: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.** Built for the Sime Darby Property University Hackathon 2026, *Township of Tomorrow*.
+Terrarium lets a buyer live **one simulated month** in an Elmina home first, and scores it on Sime Darby Property's four sustainability pillars: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.** Built by team **SelfDev** for the Sime Darby Property University Hackathon 2026, *Township of Tomorrow*.
 
 **Try it: https://ponli550.github.io/SDP-Terrarium/** (a static page; your home and sign-in stay in your browser)
 
