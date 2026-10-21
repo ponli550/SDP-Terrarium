@@ -344,4 +344,5 @@ ok($('viewLab').getAttribute('aria-pressed') === 'true' && $('viewExploded').get
 ok($('viewStudio').getAttribute('aria-pressed') === 'false' && $('viewStudio').textContent === 'Studio' && inside('viewStudio', '#viewMap'), 'the Map also offers Studio');
 $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') === 'false', 'without WebGL the switch does nothing and does not throw');
 T0.go('map');
+ok(false, 'DELIBERATE FAILURE to prove CI can fail');
 console.log('site checks passed:', n);
