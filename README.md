@@ -6,6 +6,8 @@ Terrarium lets a buyer live **one simulated month** in an Elmina home first, and
 
 **Try it: https://ponli550.github.io/SDP-Terrarium/** (a static page; your home and sign-in stay in your browser)
 
+A preview of what is merged but not yet released: https://ponli550.github.io/SDP-Terrarium/dev/
+
 ![Elmina in 3D: a condo among its neighbours, the bus stop, and the biodiversity corridor](docs/media/lab.png)
 
 ## Status, plainly
