@@ -329,6 +329,7 @@ ok($('mcpOut').querySelectorAll('i, a, img, script').length === 0 && $('mcpOut')
 $('mcpClient').value = 'workbuddy'; T0.go('map'); ok(!shown('viewAnalysis'), 'and the card goes with the page');
 ok(inside('scrub', '#viewMap') && $('scrub').type === 'range' && $('scrub').getAttribute('aria-label') && $('scrub').value === '0' && $('scrub').max === '719' && $('scrubTicks').children.length === 4 && $('scrubOut').textContent === 'Day 1 \u00b7 06:00', 'the Map has a timeline for the month, with a tick at each week');
 $('scrub').value = '100'; $('scrub').dispatchEvent(new w.Event('input', { bubbles: true })); ok($('scrub').value === '100', 'without WebGL, dragging the timeline does nothing and does not throw');
+ok($('cutBtn').hidden === true && $('cutBtn').textContent === 'Cross-section' && inside('cutBtn', '#viewMap'), 'the Cross-section button is on the Map and hidden until Studio');
 ok($('viewLab').getAttribute('aria-pressed') === 'true' && $('viewExploded').getAttribute('aria-pressed') === 'false' && $('viewLab').classList.contains('on') && $('viewExploded').textContent === 'Exploded' && inside('viewExploded', '#viewMap'), 'the Map offers Lab (pressed) and Exploded');
 ok($('viewStudio').getAttribute('aria-pressed') === 'false' && $('viewStudio').textContent === 'Studio' && inside('viewStudio', '#viewMap'), 'the Map also offers Studio');
 $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') === 'false', 'without WebGL the switch does nothing and does not throw');
