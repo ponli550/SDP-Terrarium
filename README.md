@@ -54,6 +54,11 @@ open site/index.html            # or double-click it; needs a browser with WebGL
 npm install
 npm test                        # model, assistant, profile and MCP tests, plus page checks in jsdom
 npm run test:browser            # real-Chrome checks, about 10 minutes (needs Google Chrome; set CHROME to its path)
+
+# local CI: there is deliberately no CI on GitHub; the checks run here, before anything is pushed
+npm run ci                      # a few seconds: syntax, tests, no secrets or personal data tracked, no watermark trailers, deck page count
+npm run ci:full                 # the same plus the real-Chrome suite
+npm run hooks                   # turn on the git hooks: pre-push runs `npm run ci`, commit-msg rejects Co-Authored-By trailers
 ```
 
 Without WebGL the page says so and the model, game and scores still work. The page is built to work on a phone: the real-browser suite loads every page at 360, 390, 430 and 768 px wide and fails if anything scrolls sideways, lies on top of another control, or has a tap target under 36 px (`tools/phone.html` frames the page at an exact width, because headless Chrome will not open a window narrower than 500 px).
