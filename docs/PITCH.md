@@ -4,7 +4,7 @@ See a month in your home before you sign for it
 
 Township of Tomorrow · Elmina
 
-**Team:** Irfan Ali (software engineer) · Imarsya (cyber security) · Aimi (data science) · Adief (cyber security) · Bashirah (forensics)
+**Team SelfDev:** Irfan Ali (software engineer) · Imarsya (cyber security) · Aimi (data science) · Adief (cyber security) · Bashirah (forensics)
 
 ## The problem
 
