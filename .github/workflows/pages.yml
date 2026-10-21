@@ -1,8 +1,11 @@
-# Publishes site/ (static, no build step) to GitHub Pages whenever main changes.
+# Publishes the static site (site/, no build step) to GitHub Pages:
+#   main    -> the site root   (the release)
+#   develop -> /dev/           (a preview of what is merged but not released)
+# Either branch's push rebuilds both, so neither deploy erases the other.
 name: Deploy site to GitHub Pages
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,9 +22,30 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          path: develop
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/dev
+          cp -r main/site/. _site/
+          cp -r develop/site/. _site/dev/
+          # the dev copy is labelled and kept out of search engines
+          python3 - <<'PY'
+          p = '_site/dev/index.html'
+          s = open(p, encoding='utf-8').read()
+          s = s.replace('<head>', '<head>\n<meta name="robots" content="noindex">', 1)
+          badge = '<div style="position:fixed;left:0;bottom:0;z-index:99;background:#b71c1c;color:#fff;font:600 12px system-ui;padding:3px 10px;border-top-right-radius:6px">Development build (develop branch), not the release</div>'
+          s = s.replace('</body>', badge + '\n</body>', 1)
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
