@@ -25,11 +25,12 @@
     }
     function keep(token, user) { put(TOKEN, token); put(CACHE, JSON.stringify({ email: user.email, setUp: !!user.setUp, home: P.sanitizeHome(user.home) })); }
 
-    function auth(path, email, password) {
-      return call('POST', path, { email: email, password: password }).then(function (r) {
+    function auth(path, payload) {
+      return call('POST', path, payload).then(function (r) {
         if (!r.json || !r.json.ok) return { ok: false, reason: (r.json && r.json.reason) || 'Could not log in.', status: r.status };
         keep(r.json.token, r.json.user); setStatus('saved');
-        return { ok: true, email: r.json.user.email, isNew: !!r.json.isNew || !r.json.user.setUp, setUp: !!r.json.user.setUp, home: P.sanitizeHome(r.json.user.home) };
+        // the recovery code is handed to the page once and never written to storage
+        return { ok: true, email: r.json.user.email, isNew: !!r.json.isNew || !r.json.user.setUp, setUp: !!r.json.user.setUp, home: P.sanitizeHome(r.json.user.home), recoveryCode: r.json.recoveryCode || null };
       });
     }
     function push() {
@@ -48,8 +49,17 @@
     return {
       remote: true,
       isPersistent: function () { return true; },
-      signIn: function (email, password) { return auth('/login', email, password); },
-      register: function (email, password) { return auth('/register', email, password); },
+      signIn: function (email, password) { return auth('/login', { email: email, password: password }); },
+      register: function (email, password) { return auth('/register', { email: email, password: password }); },
+      recover: function (email, code, password) { return auth('/recover', { email: email, code: code, password: password }); },
+      makeRecoveryCode: function (password) {   // a new code for the logged-in account; the password is asked again
+        var token = get(TOKEN); if (!token) return Promise.resolve({ ok: false, reason: 'You are not logged in.', status: 401 });
+        return call('POST', '/recovery-code', { password: password }, token).then(function (r) {
+          if (r.json && r.json.ok) return { ok: true, recoveryCode: r.json.recoveryCode };
+          if (r.status === 401 && r.json && r.json.reason === 'You are not logged in.') { drop(); onExpired(); }
+          return { ok: false, reason: (r.json && r.json.reason) || 'Could not make a code.', status: r.status };
+        });
+      },
       guest: function () { return local.guest(); },
       current: function () { var a = cached(); if (a && get(TOKEN)) return { email: a.email, guest: false, setUp: a.setUp, home: P.sanitizeHome(a.home) }; return local.current(); },
       refresh: function () {   // is the saved login still good? On a dead token, forget it and say so; offline, trust the copy

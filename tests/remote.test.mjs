@@ -114,3 +114,50 @@ test('a change that follows a first-time setup does not take the setup flag back
   st.saveHome({ trees: 1 }, true); st.saveHome({ trees: 2 }, false); await s.fire(); await st.flush();
   assert.equal(bodies.length, 1); assert.equal(bodies[0].setUp, true); assert.equal(bodies[0].home.trees, 2);
 });
+
+const CODE = /^[2-9A-HJKMNP-Z]{5}(-[2-9A-HJKMNP-Z]{5}){3}$/;
+
+test('registering hands the page a recovery code once and writes it nowhere in storage', async () => {
+  const r = rig(), s = r.mk(), a = await s.register('a@b.my', PW);
+  assert.match(a.recoveryCode, CODE);
+  const dump = JSON.stringify(['terrarium.token', 'terrarium.account'].map((k) => r.storage.getItem(k)));
+  assert.ok(!dump.includes(a.recoveryCode) && !dump.includes(a.recoveryCode.replace(/-/g, '')));
+  const login = await r.mk(P.memoryStorage()).signIn('a@b.my', PW); assert.equal(login.recoveryCode, null);
+});
+
+test('recover logs the user in with the new password, ends the old login, and gives a fresh code', async () => {
+  const r = rig(), s = r.mk(), a = await s.register('a@b.my', PW), otherStorage = P.memoryStorage(), other = r.mk(otherStorage); await other.signIn('a@b.my', PW);
+  s.saveHome({ house: 'condo', level: 12 }, true); await r.fire(); await s.flush();   // the account has been set up, so recovering must not send it back to the wizard
+  const fresh = r.mk(P.memoryStorage()), x = await fresh.recover('a@b.my', a.recoveryCode, 'a brand new password 9');
+  assert.ok(x.ok && x.email === 'a@b.my' && x.isNew === false && x.home.level === 12); assert.match(x.recoveryCode, CODE); assert.notEqual(x.recoveryCode, a.recoveryCode);
+  assert.equal(fresh.current().email, 'a@b.my');
+  assert.equal((await other.refresh()).ok, false, 'the other browser is logged out');
+  assert.equal((await r.mk(P.memoryStorage()).signIn('a@b.my', PW)).ok, false);
+  assert.equal((await r.mk(P.memoryStorage()).signIn('a@b.my', 'a brand new password 9')).ok, true);
+});
+
+test('a wrong recovery code is refused with the server\'s words and keeps nothing', async () => {
+  const r = rig(), s = r.mk(); await s.register('a@b.my', PW);
+  const fresh = r.mk(P.memoryStorage()), x = await fresh.recover('a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA', 'a brand new password 9');
+  assert.equal(x.ok, false); assert.equal(x.reason, 'Email or recovery code is wrong.'); assert.equal(fresh.current(), null);
+});
+
+test('recovery while the server is down says so', async () => {
+  const r = rig(); r.setDown(true);
+  const x = await r.mk().recover('a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA', 'a brand new password 9'); assert.equal(x.ok, false); assert.equal(x.reason, R.OFFLINE);
+});
+
+test('a logged-in user can make a new code with the password; a wrong password keeps the login', async () => {
+  const r = rig(), s = r.mk(), a = await s.register('a@b.my', PW);
+  const bad = await s.makeRecoveryCode('wrong wrong wrong'); assert.equal(bad.ok, false); assert.equal(bad.reason, 'Password is wrong.'); assert.ok(s.current(), 'still logged in');
+  const good = await s.makeRecoveryCode(PW); assert.ok(good.ok); assert.match(good.recoveryCode, CODE); assert.notEqual(good.recoveryCode, a.recoveryCode);
+  assert.equal((await r.mk(P.memoryStorage()).recover('a@b.my', a.recoveryCode, 'a brand new password 9')).ok, false, 'the old code is dead');
+  assert.equal((await r.mk(P.memoryStorage()).recover('a@b.my', good.recoveryCode, 'a brand new password 9')).ok, true);
+});
+
+test('making a code with a dead login logs out and tells the page; with no login it just refuses', async () => {
+  const r = rig(), s = r.mk(); await s.register('a@b.my', PW);
+  r.db._sessions.clear(); const x = await s.makeRecoveryCode(PW);
+  assert.equal(x.ok, false); assert.equal(r.events.expired, 1); assert.equal(s.current(), null);
+  assert.equal((await r.mk(P.memoryStorage()).makeRecoveryCode(PW)).ok, false);
+});

@@ -32,7 +32,7 @@
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
-  var API = window.TERRARIUM_API || '', registering = false, busy = false;
+  var API = window.TERRARIUM_API || '', mode = 'login', busy = false;
   if (API && window.TerrariumRemote) {   // real accounts; with no API address the demo store above stays
     var keep; try { window.localStorage.setItem('terrarium.probe', '1'); window.localStorage.removeItem('terrarium.probe'); keep = window.localStorage; } catch (e) { keep = P.memoryStorage(); }
     store = window.TerrariumRemote.createRemoteStore({ base: API, fetch: function () { return window.fetch.apply(window, arguments); }, profile: P, storage: keep, local: P.createStore(null), onStatus: showSave, onExpired: function () { $('signOut').click(); $('gateErr').textContent = 'Your login ended. Log in again.'; } });
@@ -111,7 +111,7 @@
   function finishSetup() { saveProfile(true); closeWizard(); if (firstRun) { firstRun = false; showFirstLook(); } }
   function openWizard() { wizardSync(); $('wizard').hidden = false; $('w_house').focus(); }
   function closeWizard() { $('wizard').hidden = true; }
-  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Log in' : 'Log out'; $('signOut').title = session.guest ? 'Leave guest mode and log in with an email' : 'Log out of ' + session.email; } }
+  function showChip() { var c = $('userChip'); c.hidden = !session; if (session) { $('userName').textContent = session.guest ? 'Guest' : session.email; $('signOut').textContent = session.guest ? 'Log in' : 'Log out'; $('signOut').title = session.guest ? 'Leave guest mode and log in with an email' : 'Log out of ' + session.email; } $('recoveryBtn').hidden = !(session && !session.guest && store.remote); }
   function startSession(s) {
     session = s; firstRun = !!(s.isNew || s.setUp === false); Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), P.sanitizeHome(s.home));
     if (st.billKwh === undefined) st.billKwh = null;
@@ -119,13 +119,18 @@
     if (s.isNew || (s.setUp === false)) openWizard();
   }
   function showSave(s) { var e = $('saveState'); e.textContent = s === 'failed' ? 'Not saved' : s === 'saving' ? 'Saving…' : ''; e.className = s === 'failed' ? 'bad' : ''; e.title = s === 'failed' ? 'The server could not be reached. Your changes are kept here and sent with the next change.' : ''; }
-  function gateMode(reg) {
-    registering = reg; $('gateGo').textContent = reg ? 'Create account' : 'Log in'; $('gatePw').autocomplete = reg ? 'new-password' : 'current-password';
-    $('gateMode').textContent = reg ? 'I already have an account' : 'New here? Create an account';
-    $('gateNote').textContent = reg ? 'Choose a password of 10 to 128 characters. It is stored as a salted hash, never as text. There is no reset yet, so keep it safe.' : 'Your home is saved to your account on the server. A guest is not saved.';
+  function gateMode(m) {   // 'login', 'register' or 'recover' (a forgotten password, with the recovery code)
+    mode = m; var reg = m === 'register', rec = m === 'recover';
+    $('gateGo').textContent = reg ? 'Create account' : rec ? 'Reset password' : 'Log in'; $('gatePw').autocomplete = reg || rec ? 'new-password' : 'current-password'; $('gatePwLabel').textContent = rec ? 'New password' : 'Password';
+    $('gateCodeRow').hidden = !rec; $('gateForgotRow').hidden = m !== 'login';
+    $('gateMode').textContent = reg ? 'I already have an account' : rec ? 'Back to log in' : 'New here? Create an account';
+    $('gateNote').textContent = reg ? 'Choose a password of 10 to 128 characters. It is stored as a salted hash, never as text. You will be given a recovery code to keep: it is the only way back in if you forget the password.' : rec ? 'Enter your email, the recovery code you saved when you made the account, and a new password. Every other login is ended, and you get a new code.' : 'Your home is saved to your account on the server. A guest is not saved.';
   }
+  function showRecovery(code) { $('recAsk').hidden = true; $('recShow').hidden = false; $('recCode').textContent = code; $('recSaved').checked = false; $('recDone').disabled = true; $('recCopied').textContent = ''; $('recovery').hidden = false; $('recSaved').focus(); }
+  function askRecovery() { $('recShow').hidden = true; $('recAsk').hidden = false; $('recPw').value = ''; $('recErr').textContent = ''; $('recovery').hidden = false; $('recPw').focus(); }
+  function closeRecovery() { $('recCode').textContent = ''; $('recPw').value = ''; $('recovery').hidden = true; }   // the code leaves the page when the dialog does
   function showGate() { $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gatePw').value = '';
-    if (store.remote) { $('gatePwRow').hidden = false; $('gateModeRow').hidden = false; gateMode(false); $('gate').hidden = false; $('gateEmail').focus(); return; }
+    if (store.remote) { $('gatePwRow').hidden = false; $('gateModeRow').hidden = false; $('gateCode').value = ''; gateMode('login'); $('gate').hidden = false; $('gateEmail').focus(); return; }
     $('gatePwRow').hidden = true; $('gateModeRow').hidden = true; $('gateGo').textContent = 'Log in'; $('gateNote').textContent = store.isPersistent() ? 'Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.' : 'Your browser is blocking storage, so your home will not be kept after you close this page. This is a demo sign-in with no password.'; $('gate').hidden = false; $('gateEmail').focus(); }
   $('wizFields').innerHTML = wizardHtml();
   WIZ.forEach(function (f) {
@@ -138,10 +143,12 @@
     e.preventDefault();
     if (store.remote) {
       if (busy) return; busy = true; $('gateGo').disabled = true; $('gateErr').textContent = '';
-      (registering ? store.register : store.signIn).call(store, $('gateEmail').value, $('gatePw').value).then(function (r) {
-        busy = false; $('gateGo').disabled = false; $('gatePw').value = '';
+      var em = $('gateEmail').value, pw = $('gatePw').value, code = $('gateCode').value;
+      (mode === 'register' ? store.register(em, pw) : mode === 'recover' ? store.recover(em, code, pw) : store.signIn(em, pw)).then(function (r) {
+        busy = false; $('gateGo').disabled = false; $('gatePw').value = ''; $('gateCode').value = '';
         if (!r.ok) { $('gateErr').textContent = r.reason; return; }
         startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew, setUp: r.setUp });
+        if (r.recoveryCode) showRecovery(r.recoveryCode);   // shown once, over the setup dialog
       });
       return;
     }
@@ -149,7 +156,24 @@
     if (!r.ok) { $('gateErr').textContent = r.reason; return; }
     startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew });
   });
-  $('gateMode').addEventListener('click', function () { $('gateErr').textContent = ''; gateMode(!registering); });
+  $('gateMode').addEventListener('click', function () { $('gateErr').textContent = ''; gateMode(mode === 'login' ? 'register' : 'login'); });
+  $('gateForgot').addEventListener('click', function () { $('gateErr').textContent = ''; gateMode('recover'); $('gateCode').focus(); });
+  $('recSaved').addEventListener('change', function () { $('recDone').disabled = !$('recSaved').checked; });
+  $('recDone').addEventListener('click', closeRecovery);
+  $('recCancel').addEventListener('click', closeRecovery);
+  $('recoveryBtn').addEventListener('click', askRecovery);
+  $('recCopy').addEventListener('click', function () {
+    var t = $('recCode').textContent, done = function (ok) { $('recCopied').textContent = ok ? 'Copied' : 'Select the code and copy it yourself'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { done(true); }, function () { done(false); }); else done(false);
+  });
+  $('recAsk').addEventListener('submit', function (e) {
+    e.preventDefault(); if (busy) return; busy = true; $('recAskGo').disabled = true; $('recErr').textContent = '';
+    store.makeRecoveryCode($('recPw').value).then(function (r) {
+      busy = false; $('recAskGo').disabled = false; $('recPw').value = '';
+      if (!r.ok) { if (session) $('recErr').textContent = r.reason; return; }   // a login that has ended is already back at the gate
+      showRecovery(r.recoveryCode);
+    });
+  });
   $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
   $('wizDone').addEventListener('click', finishSetup);
   $('myMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
@@ -176,7 +200,7 @@
   $('acct').addEventListener('click', function (e) { if (e.target.closest('.acctmenu button')) $('acct').open = false; });
   document.addEventListener('click', function (e) { if ($('acct').open && !$('acct').contains(e.target)) $('acct').open = false; });
   $('signOut').addEventListener('click', function () {
-    store.signOut(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
+    store.signOut(); closeRecovery(); stopPlacing(); hideFirstLook(); closeCompare(); firstRun = false; session = null; g = null; anim = null; draft = null; Object.keys(st).forEach(function (k) { delete st[k]; }); Object.assign(st, DEFAULT_STATE(), { billKwh: null });
     if (scene) { scene.setRange(1, 30, true); scene.setSpeed(speed); scene.jumpTo(1, 6); scene.play(); }
     closeWizard(); showChip(); render(); showGate();
   });
@@ -437,6 +461,8 @@
   if (SHOT && q0.has('stress')) stressN = +q0.get('stress');   // rebuild the homes many times, a few frames apart so each build is really drawn
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
+  if (SHOT && q0.has('forgot') && store.remote) { session = null; showChip(); showGate(); gateMode('recover'); }
+  if (SHOT && q0.has('recovery') && store.remote) { session = null; showChip(); $('gate').hidden = true; showRecovery('K7QX2-9HMWD-TR4ZB-8NPCF'); }
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
@@ -481,7 +507,11 @@
     var tap = 999; [].forEach.call(document.querySelectorAll('.hud button, header button, header summary'), function (b) { var r = R(b); if (r) tap = Math.min(tap, Math.round(r.height)); });
     return { overlaps: over, minTap: tap === 999 ? null : tap };
   }
-  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
+  function fieldInfo() {   // how wide each gate field is and how many lines the recovery code takes, as drawn
+    var w = function (id) { var e = $(id); return e.offsetParent === null ? 0 : Math.round(e.getBoundingClientRect().width); }, r = $('recCode'), cs = getComputedStyle(r), fs = parseFloat(cs.fontSize), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    return { email: w('gateEmail'), code: w('gateCode'), pw: w('gatePw'), recPw: w('recPw'), recW: w('recCode'), recLines: r.offsetParent === null ? 0 : Math.round((r.getBoundingClientRect().height - pad) / (fs * 1.3)), recFits: r.offsetParent === null ? true : r.scrollWidth <= r.clientWidth + 1 };
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), fields: fieldInfo(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
