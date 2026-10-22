@@ -10,7 +10,9 @@ Township of Tomorrow · Elmina
 
 A buyer signs for a home without knowing what it will cost to live in. **The electricity bill, the daily trips, and how the house copes with a hot week are all discovered after handover.**
 
-Today the price and the layout are the only things a buyer can see.
+A typical showroom visit: the buyer sees 3D models of the township, the LRT line, the houses and the apartments. **They cannot see how a home copes in a hot week, what it costs to run, or whether it floods.**
+
+We show the first two, as illustrations. **Flooding is not in our model yet.**
 
 **We have not yet spoken to a buyer. That conversation is our first next step.** [Buyer quote to add]
 
@@ -25,6 +27,8 @@ Sime Darby Property's own app helps owners with billing, documents, vacant-posse
 Elmina's nearest public transit stop is **0.93 km** from the township centre, and the nearest rail station is 5.4 km away. These come from public timetable feeds (data.gov.my), with an approximate centre and straight-line distance.
 
 **That is a distance, not a complaint.** Whether residents find it a problem is exactly what we have not yet asked.
+
+Two more figures now have a published source: the grid carbon factor, **0.740 kg CO2e per kWh** (Energy Commission, 2024, provisional), and the July 2025 tariff, **44.43 sen per kWh** plus RM 10 a month above 600 kWh (from a news report of the regulator's schedule). The app's About page lists every number with its source and what we did not check.
 
 ## What we built
 
@@ -61,13 +65,13 @@ SDP's 40% target covers its own operations (Scope 1 and 2). It says it is baseli
 
 Nudges work, modestly. Home energy reports cut electricity use by **about 2% on average** (Allcott 2011, roughly 600,000 US households; utilities ranged from 1.4% to 3.3%).
 
-Per household that is small. The case is better buying decisions, and scale across a township. **We have not measured any effect of our tool, and every figure on screen is a placeholder until a real home replaces it.**
+Per household that is small. The case is better buying decisions, and scale across a township. **We have not measured any effect of our tool, and the values on screen are placeholders until a real home replaces them.** Two constants behind them now have published sources (the grid carbon factor and the July 2025 tariff).
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (237 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 302 page checks and 108 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+A working prototype in the browser: a tested model (278 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 360 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
-**Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
+**Limits:** the air-con and shade maths and the scoring formulas are our placeholders. Public data gives the stop and rail distances and the corridor's trees (real); the grid carbon factor and the July 2025 tariff are sourced. Every simulated value stays a placeholder until an owner enters a bill.
 
 A pilot is proposed on a later slide. Nothing is agreed with SDP yet.
 
@@ -87,9 +91,9 @@ Once an owner lives in the home, they enter the kWh on their bill. The model sho
 
 **Checked:** the 0.93 km distance, what SDP's app covers, the roughly 2% nudge ceiling, and the model's behaviour in tests.
 
-**Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, and whether managers would use it.
+**Not checked:** that buyers want this, that it changes any behaviour, the tariff in the regulator's own schedule (we read a news report of it), and whether managers would use it.
 
-**Next:** talk to recent buyers and a township manager, then replace the placeholders with the real tariff and one metered home.
+**Next:** talk to recent buyers and a township manager, then replace the placeholders with one metered home.
 
 ## Sources
 

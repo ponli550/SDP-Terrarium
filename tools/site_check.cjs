@@ -8,6 +8,9 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 const html = read('index.html')
   .replace(/<script src="vendor\/[^"]*"><\/script>\s*/g, '').replace(/<script src="scene.js"><\/script>\s*/, '')
   .replace('<script src="logic.js"></script>', '<script>' + read('logic.js') + '</script>')
+  .replace('<script src="dashboard.js"></script>', '<script>' + read('dashboard.js') + '</script>')
+  .replace('<script src="dashview.js"></script>', '<script>' + read('dashview.js') + '</script>')
+  .replace('<script src="aboutview.js"></script>', '<script>' + read('aboutview.js') + '</script>')
   .replace('<script src="profile.js"></script>', '<script>' + read('profile.js') + '</script>')
   .replace('<script src="mcpconfig.js"></script>', '<script>' + read('mcpconfig.js') + '</script>')
   .replace('<script src="assistant.js"></script>', '<script>' + read('assistant.js') + '</script>')
@@ -348,4 +351,86 @@ ok($('viewStudio').getAttribute('aria-pressed') === 'false' && $('viewStudio').t
 $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') === 'false', 'without WebGL the switch does nothing and does not throw');
 T0.go('map');
 $('signOut').click(); ok($('gatePwRow').hidden && $('gateModeRow').hidden && $('gateGo').textContent === 'Log in', 'with no API address the gate is the demo gate: no password field, no account switch'); $('gateGuest').click();
+
+// ---- the About page: public, built from the model, reachable from the tab and from the dashboard ----
+{
+  const q1 = (q) => w.document.querySelector(q), qa = (q) => [...w.document.querySelectorAll(q)];
+  T0.go('about');
+  ok(!$('viewAbout').hidden && $('viewMap').hidden && $('viewAnalysis').hidden && w.location.hash === '#/about' && $('tabAbout').getAttribute('aria-current') === 'page' && !$('tabMap').getAttribute('aria-current') && /About the numbers/.test(w.document.title), 'the About page opens on its own address, with its tab marked, and the other pages hidden');
+  ok(qa('#aboutSources .srcrow').length === Object.keys(w.Terrarium.ASSUME).length && qa('#aboutSources .srcrow[data-grade="SOURCED"]').length === Object.values(w.Terrarium.ASSUME).filter((a) => a.grade === 'SOURCED').length, 'it lists every assumption the model uses');
+  ok(/0\.74/.test(q1('#aboutSources .srcrow[data-key="gridKgKwh"]').textContent) && /Energy Commission/.test($('aboutSources').textContent) && /27\.03 sen per kWh/.test($('aboutSources').textContent), 'the sourced grid factor and tariff are on the page, with their publisher');
+  ok(qa('#viewAbout a[href]').every((a) => /^https:\/\//.test(a.getAttribute('href')) && a.target === '_blank' && /noopener/.test(a.rel)) && qa('#viewAbout details.faq').length === 9, 'every outside link opens safely, and the nine questions are there');
+  T0.go('analysis'); ok($('viewAbout').hidden && !$('viewAnalysis').hidden, 'leaving About hides it');
+  $('anaAbout').click(); ok(!$('viewAbout').hidden && w.location.hash === '#/about', 'the dashboard\'s "Where do these numbers come from?" takes you there');
+  T0.go('map'); ok($('viewAbout').hidden && !$('viewMap').hidden && $('tabMap').getAttribute('aria-current') === 'page', 'and the Map tab takes you back');
+  { let scrolls = 0; w.scrollTo = () => { scrolls++; }; T0.go('about'); ok(scrolls >= 1, 'opening About starts at the top of the page'); T0.go('map'); }
+  // signing out while on About must not throw the gate over the page being read; it waits until the visitor leaves
+  { ok($('gate').hidden, 'a guest is in (no gate) before this check'); T0.go('about'); $('signOut').click();
+    ok($('gate').hidden && !$('viewAbout').hidden, 'signing out on the About page leaves the page readable: the gate waits');
+    T0.go('map'); ok(!$('gate').hidden, 'and appears when the visitor goes back'); $('gateGuest').click(); ok($('gate').hidden, 'a guest can carry on'); }
+}
+// ---- the Analysis dashboard ----
+{
+  const q1 = (q) => w.document.querySelector(q), qa = (q) => [...w.document.querySelectorAll(q)], fire = (e, t, init) => e.dispatchEvent(new w.Event(t, Object.assign({ bubbles: true }, init)));
+  const key = (e, k) => e.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  $('house').value = 'condo'; fire($('house'), 'change'); setRange('level', 12); setRange('solarKwp', 0); setRange('acHours', 8); setRange('walkShare', 30); setRange('trees', 3); $('hotWeek').checked = false; fire($('hotWeek'), 'change');
+  ok(['dashview.js', 'aboutview.js'].every((f) => !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''))), 'the dashboard and the About page are drawn with DOM calls and text only, never parsed as HTML');
+  // the verdict
+  ok(/^Home score \d+ out of 100$/.test(q1('#dashHead .ring').getAttribute('aria-label')) && qa('#dashHead .delta').length === 3 && qa('#dashHead .delta .badge').length === 3 && /kWh a month/.test(q1('#dashHead .dh-sentence').textContent) && /placeholder scoring/.test($('dashHead').textContent), 'the verdict shows the score ring, a sentence, three headline figures with grade badges, and says the scoring is a placeholder');
+  ok(qa('#dashHead .delta').every((d) => /illustrative neighbour (RM )?\d+/.test(d.querySelector('small:last-child').textContent)), 'each headline figure shows the illustrative neighbour\'s own number');
+  // an illustrative figure is never coloured as a verdict: dashed and neutral, and its neighbour is named illustrative
+  ok(qa('#dashHead .delta.illus').length === 3 && qa('#dashHead .delta.good, #dashHead .delta.bad, #dashHead .delta.same').length === 0 && qa('#dashHead .delta').every((d) => /\d+% below the illustrative neighbour/.test(d.querySelector('.dpill').textContent)), 'a home that uses less is shown neutral, with "below the illustrative neighbour" in the words');
+  ok(qa('#pillars .pchip:not(.cap)').length === 4 && qa('#pillars .pchip:not(.cap)').every((c) => /illustrative neighbour/.test(c.textContent)), 'every pillar chip names the illustrative neighbour');
+  ok(qa('#pillars .pchip.good, #pillars .pchip.bad').length === 0 && qa('#pillars .pchip.illus').length >= 3 && qa('#pillars .drv-bar.you.good, #pillars .drv-bar.you.bad').length === 0, 'and so are the pillar chips and bars: no green or red for a placeholder');
+  { $('house').value = 'semid'; fire($('house'), 'change'); setRange('acHours', 12); setRange('trees', 0);
+    ok(qa('#dashHead .delta.illus').length === 3 && qa('#dashHead .delta').some((d) => /\d+% above the illustrative neighbour/.test(d.querySelector('.dpill').textContent)), 'a home that uses more says "above the illustrative neighbour", also neutral');
+    $('house').value = 'condo'; fire($('house'), 'change'); setRange('acHours', 8); setRange('trees', 3); }
+  // a real bill: the one figure that becomes the owner's own is coloured, named real, and the page says what is still a model
+  ok(qa('#dashHead .matched').length === 0, 'no banner before a bill is matched');
+  { $('billKwh').value = '260'; fire($('billForm'), 'submit', { cancelable: true });
+    const tile = q1('#dashHead .delta[data-key="monthKwh"]'), rmTile = q1('#dashHead .delta[data-key="monthBill"]'), others = qa('#dashHead .delta').filter((d) => d.dataset.key === 'carbonKg');
+    ok(tile.classList.contains('good') && tile.querySelector('.badge.REAL') && /\d+% below the illustrative neighbour/.test(tile.querySelector('.dpill').textContent) && /260 kWh/.test(tile.querySelector('b').textContent), 'a matched bill makes the electricity figure real, coloured, and exactly the bill, still compared with an illustrative neighbour');
+    ok(rmTile.classList.contains('good') && rmTile.querySelector('.badge.SOURCED') && /^RM \d+/.test(rmTile.querySelector('b').textContent), 'the bill in RM follows the real kWh through the published tariff, so it is SOURCED and coloured');
+    ok(others.length === 1 && others.every((d) => d.classList.contains('illus') && d.querySelector('.badge.ILLUSTRATIVE')), 'and the carbon, which includes car trips, stays neutral and illustrative');
+    ok(/Matched to your real bill: 260 kWh/.test(q1('#dashHead .matched').textContent) && /^Your own bill is 260 kWh/.test(q1('#dashHead .dh-sentence').textContent) && /The electricity figure is your own bill/.test($('caveats').textContent) && qa('#caveats li').length === 4, 'the banner, the summary and the limits all say it');
+    setRange('acHours', 9); ok(qa('#dashHead .matched').length === 0 && q1('#dashHead .delta[data-key="monthKwh"]').classList.contains('illus') && /^This home uses /.test(q1('#dashHead .dh-sentence').textContent), 'changing the home breaks the match and the page goes back to a model');
+    setRange('acHours', 8); $('billReset').click(); ok(qa('#dashHead .matched').length === 0 && qa('#caveats li').length === 3, 'Reset clears it'); }
+  // the pillars
+  const cards = qa('#pillars .pcard'), caps = cards.filter((c) => c.querySelector('.score').textContent === '100').length;
+  ok(cards.length === 4 && cards.every((c) => /^\d+$/.test(c.querySelector('.score').textContent) && c.querySelector('details.how .formula').textContent.length > 20 && c.querySelectorAll('.drv-row').length === 2 && c.querySelector('.drv .badge')), 'four pillar cards, each with a score, what drives it against the neighbour, a grade badge, and the formula folded away');
+  ok(qa('#pillars .pchip.cap').length === caps && caps >= 1, 'a pillar sitting at the cap of 100 says so');
+  // the month
+  ok(qa('#chart .bar-grid').length === 30 && q1('#chart .nbline').getAttribute('points').split(' ').length === 30 && qa('#chart .bar-sun').length === 0, 'the month draws 30 bars and the neighbour line, and no solar segment for a home without solar');
+  setRange('solarKwp', 3); ok(qa('#chart .bar-sun').length === 30, 'with solar, every day shows the offset on top');
+  ok(qa('#chart .clockmark').length === 1 && +q1('#chart .clockmark').getAttribute('data-day') >= 1 && +q1('#chart .clockmark').getAttribute('data-day') <= 30, 'the day the Map clock is on is outlined, and the rest of the month is still drawn in full');
+  ok(qa('#chart .heat').length === 0, 'no heat band in a normal month'); $('hotWeek').checked = true; fire($('hotWeek'), 'change');
+  ok(qa('#chart .heat').length === 1 && Math.abs(+q1('#chart .heat').getAttribute('width') - 7 * (604 / 30)) < 0.1, 'a hot week shades exactly seven days'); $('hotWeek').checked = false; fire($('hotWeek'), 'change');
+  const ch = $('chart'), ro = $('chartReadout'); ok(/^Month: /.test(ro.textContent) && ch.getAttribute('tabindex') === '0' && /Daily electricity/.test(ch.getAttribute('aria-label')), 'the chart starts with the month summary and can be focused');
+  key(ch, 'Home'); key(ch, 'ArrowRight'); key(ch, 'ArrowRight'); ok(/^Day 3: /.test(ro.textContent) && q1('#chart .daymark').getAttribute('visibility') === 'visible', 'from day 1, two right arrows read day 3 and mark it'); key(ch, 'ArrowLeft'); ok(/^Day 2: /.test(ro.textContent), 'a left arrow goes back one');
+  key(ch, 'End'); ok(/^Day 30: /.test(ro.textContent), 'End reads the last day'); key(ch, 'Home'); ok(/^Day 1: /.test(ro.textContent), 'Home reads the first'); key(ch, 'ArrowLeft'); ok(/^Day 1: /.test(ro.textContent), 'it stops at day 1');
+  key(ch, 'Escape'); ok(/^Month: /.test(ro.textContent) && q1('#chart .daymark').getAttribute('visibility') === 'hidden', 'Escape goes back to the month');
+  ok(qa('#monthTable tbody tr').length === 30 && qa('#monthTable thead th').length === 6, 'the same month is available as a table');
+  // what would change it
+  const rows = qa('#levers .lever'); ok(qa('#levers .lever.dim').length >= 1 && qa('#levers .lever.dim').length === qa('#levers .lever-go:disabled').length, 'the changes that do not help are dimmed, and exactly those cannot be applied'); ok(rows.length === 5 && rows.every((r) => r.querySelectorAll('.lv-bar').length === 2 && r.querySelector('.lever-go')), 'five changes, each with a score bar, a carbon bar and an Apply button');
+  ok(rows.filter((r) => r.classList.contains('dim')).every((r) => r.querySelector('.lever-go').disabled) && rows.some((r) => !r.querySelector('.lever-go').disabled), 'a change that does not help cannot be applied, one that does can');
+  { const live = rows.filter((r) => !r.querySelector('.lever-go').disabled), second = live[1], k2 = second.dataset.lever, others = ['acHours', 'setpoint', 'walkShare', 'trees', 'solarKwp'].filter((x) => x !== k2), snap = others.map((x) => $(x).value), b2 = +$(k2).value;
+    second.querySelector('.lever-go').click(); ok(+$(k2).value !== b2 && others.every((x, i) => $(x).value === snap[i]), 'Apply on the second row changes that choice and no other (' + k2 + ')'); setRange(k2, b2);
+  }
+  { const rows2 = qa('#levers .lever'), first = rows2.find((r) => !r.querySelector('.lever-go').disabled), k = first.dataset.lever, before = +$(k).value; first.querySelector('.lever-go').click();
+    ok(+$(k).value !== before, 'Apply on "' + k + '" changes that choice on the home (' + before + ' to ' + $(k).value + ')');
+    ok(qa('#levers .lever').length === 5 && qa('#levers .lever')[0].dataset.lever !== undefined, 'and the dashboard is redrawn for the new home'); }
+  $('gStart') && $('gStart').click(); ok(qa('#levers .lever-go').every((b) => b.disabled) && /Quit the game/.test(q1('#levers .lever-go').title), 'while a game is running no change can be applied from the dashboard');
+  { const goes = qa('#levers .lever-go'), snap = ['acHours', 'setpoint', 'walkShare', 'trees', 'solarKwp'].map((x) => $(x).value); goes.forEach((b) => b.onclick()); ok(['acHours', 'setpoint', 'walkShare', 'trees', 'solarKwp'].every((x, i) => $(x).value === snap[i]), 'and even a click that gets past the disabled button changes nothing during a game'); }
+  $('gQuit') && $('gQuit').click();
+  // your floor
+  ok(!$('floors').hidden && qa('#floors .floor-bar').length === 35 && qa('#floors .floor-bar.sel').length === 1 && q1('#floors .floor-bar.sel').getAttribute('data-level') === $('level').value, 'a condo shows all 35 floors with its own marked');
+  { const bar = q1('#floors .floor-bar[data-level="20"]'); bar.onclick(); ok($('level').value === '20' && q1('#floors .floor-bar.sel').getAttribute('data-level') === '20' && /^Level 20: /.test(q1('#floors .readout').textContent), 'tapping a floor moves the home there'); }
+  ok(/shaded by the trees/.test($('floors').textContent) && qa('#floors .badge.ILLUSTRATIVE').length === 2, 'the floor rules are labelled as placeholders');
+  $('house').value = 'terrace'; fire($('house'), 'change'); ok($('floors').hidden && $('floors').children.length === 0, 'a home that is not a condo has no floor section');
+  // honesty
+  ok(/^Of 11 figures, \d+ REAL, \d+ SOURCED, \d+ ILLUSTRATIVE\.$/.test($('gradeLine').textContent) && qa('#caveats li').length === 3, 'the page counts how many figures are real, and lists what it does not tell you');
+  // phones: the choices sit under the dashboard, so there is a way down to them
+  { let scrolled = 0; T0.go('analysis'); $('choices').scrollIntoView = () => { scrolled++; }; $('anaChoices').click(); ok(scrolled === 1 && w.document.activeElement === $('house') && $('anaChoices').classList.contains('phoneonly'), 'the phone jump button, pressed on the Analysis page, takes you to the choices'); T0.go('map'); }
+  $('house').value = 'condo'; fire($('house'), 'change');
+}
 console.log('site checks passed:', n);

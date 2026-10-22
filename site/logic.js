@@ -4,12 +4,32 @@
 (function (root) {
   const GRADE = { REAL: 'REAL', SOURCED: 'SOURCED', ILLUSTRATIVE: 'ILLUSTRATIVE' };
 
+  // The domestic tariff for Peninsular Malaysia, 1 July 2025 to 31 December 2027, in RM. SOURCED from a news explainer of the Energy Commission's schedule (see SOURCES);
+  // the monthly fuel adjustment (AFA), the 8% service tax reported above 600 kWh and time-of-use pricing are left out. Above 1,500 kWh it is not clear whether the higher energy rate
+  // applies to every unit or only the excess; the model applies it to the excess, which matters for no home it shows.
+  const TARIFF = { energy: [[1500, 0.2703], [Infinity, 0.3703]], capacity: 0.0455, network: 0.1285, retail: { rm: 10, freeAtOrBelowKwh: 600 } };
+
+  // Where each REAL or SOURCED figure comes from. A figure may carry a grade above ILLUSTRATIVE only if it has an entry here (a test enforces it).
+  // read: 'primary' = we read the publisher's own document; 'secondary' = a report of it; 'carried' = taken from the first build and not re-checked.
+  const SOURCES = {
+    gridKgKwh: { title: 'Grid Emission Factor (GEF) in Malaysia, 2022-2024 (Provisional)', publisher: 'Suruhanjaya Tenaga (Energy Commission)', date: '2026-02-23', url: 'https://myenergystats.st.gov.my/documents/d/guest/grid-emission-factor-gef-in-malaysia-2022-2024-provisional-', read: 'primary', checked: '2026-10-22',
+      caveat: 'Peninsular Malaysia 2024 is 0.740 Gg CO2e/GWh, the same as 0.740 kg per kWh. Provisional; Tier 1 emission factors; includes generators that may sell Renewable Energy Certificates, so it may not reflect electricity whose renewable claim was sold separately.' },
+    tariff: { title: 'New TNB electricity tariff structure from July 1 2025', publisher: 'Carz (a news explainer)', date: '2025-06', url: 'https://carz.com.my/2025/06/new-tnb-electricity-tariff-structure-from-july-1-2025', read: 'secondary', checked: '2026-10-22',
+      confirmedBy: [{ title: 'Energy Commission announcement of the tariff schedule, as reported by Bernama', url: 'https://www.bernama.com/bm/news.php?id=2436367', for: 'the structure, the dates (1 July 2025 to 31 December 2027) and the 45.40 sen per kWh average base tariff' }],
+      caveat: 'The per-charge figures are from a news explainer; they were not found in the Energy Commission or TNB schedule itself. The monthly fuel adjustment, the service tax, time-of-use pricing and the energy efficiency incentive are left out.' },
+    nudgeCap: { title: 'Social norms and energy conservation', publisher: 'H. Allcott, Journal of Public Economics 95(9-10)', date: '2011', url: null, read: 'carried', checked: null, caveat: 'An average over trials in about 600,000 US households. It is a ceiling on what a nudge can do, not a forecast for Elmina.' },
+    stopKm: { title: 'GTFS static feeds for public transport', publisher: 'data.gov.my', date: null, url: null, read: 'carried', checked: null, caveat: 'The township centre is approximate and the distance is a straight line. It is a distance, not a complaint.' },
+    railKm: { title: 'GTFS static feeds for public transport', publisher: 'data.gov.my', date: null, url: null, read: 'carried', checked: null, caveat: 'The township centre is approximate and the distance is a straight line.' },
+    corridorTrees: { title: 'Sustainability highlights 2024 (a slide)', publisher: 'Sime Darby Property', date: '2024', url: null, read: 'carried', checked: null, caveat: 'The trees are those planted along a 500 m stretch of the corridor, not the whole corridor.' },
+  };
+  const TARIFF_ALL_IN = TARIFF.energy[0][1] + TARIFF.capacity + TARIFF.network;   // RM per kWh up to 1,500 kWh, the figure the assumptions table quotes
+
   // Assumptions, each with its grade. Replace ILLUSTRATIVE ones before any claim.
   const ASSUME = {
     stopKm:      { v: 0.93, grade: GRADE.REAL, note: 'Elmina centre to nearest public transit stop, data.gov.my GTFS feeds; centre is approximate, straight line' },
     acKw24:      { v: 1.0,  grade: GRADE.ILLUSTRATIVE, note: 'AC draw at 24 C setpoint, kW' },
     acPerDegree: { v: 0.06, grade: GRADE.ILLUSTRATIVE, note: 'share of AC energy saved per degree of setpoint above 24' },
-    gridKgKwh:   { v: 0.7,  grade: GRADE.ILLUSTRATIVE, note: 'grid emission factor, kg CO2 per kWh' },
+    gridKgKwh:   { v: 0.74, grade: GRADE.SOURCED, note: 'grid emission factor, kg CO2 per kWh: Peninsular Malaysia 2024, provisional, Energy Commission release of February 2026' },
     peakSunH:    { v: 3.8,  grade: GRADE.ILLUSTRATIVE, note: 'peak sun hours per day' },
     solarPerf:   { v: 0.8,  grade: GRADE.ILLUSTRATIVE, note: 'system performance ratio' },
     solarShare:  { v: 0.4,  grade: GRADE.ILLUSTRATIVE, note: 'most of the usage that daytime solar can offset, no export credit' },
@@ -23,12 +43,10 @@
     liftMin:     { v: 1,    grade: GRADE.ILLUSTRATIVE, note: 'minutes to get from a unit to the ground floor by lift or stairs, before the per-level amount' },
     liftPerLevel: { v: 0.1, grade: GRADE.ILLUSTRATIVE, note: 'extra minutes per level of height on that trip down' },
     shadePerTree: { v: 0.01, grade: GRADE.ILLUSTRATIVE, note: 'air-con energy saved per shade tree on the plot, capped at 10%' },
+    tariff:      { v: TARIFF_ALL_IN, grade: GRADE.SOURCED, note: 'electricity tariff, RM per kWh, for a home using up to 1,500 kWh a month (energy 27.03, capacity 4.55 and network 12.85 sen), plus RM 10 a month above 600 kWh; Peninsular Malaysia from July 2025; no monthly fuel adjustment or service tax' },
     corridorTrees: { v: 1450, grade: GRADE.REAL, note: 'trees planted along a 500 m stretch of the Elmina Urban Biodiversity Corridor, SDP 2024 sustainability highlights slide' },
     nudgeCap:    { v: 0.02, grade: GRADE.SOURCED, note: 'average electricity cut from home energy reports, Allcott 2011, about 2.0%' },
   };
-  // Illustrative tiered tariff, RM per kWh. Replace with the current domestic tariff.
-  const TARIFF = [[200, 0.218], [100, 0.334], [300, 0.516], [Infinity, 0.546]];
-
   const HOUSES = {
     terrace: { label: 'Terrace house', baseKwhDay: 8,  acFactor: 1.0 },
     semid:   { label: 'Semi-D house',  baseKwhDay: 11, acFactor: 1.3 },
@@ -59,7 +77,9 @@
 
   function bill(kwh) {
     let left = kwh, rm = 0;
-    for (const [size, rate] of TARIFF) { const take = Math.min(left, size); rm += take * rate; left -= take; if (left <= 0) break; }
+    for (const [size, rate] of TARIFF.energy) { const take = Math.min(left, size); rm += take * rate; left -= take; if (left <= 0) break; }
+    rm += kwh * (TARIFF.capacity + TARIFF.network);
+    if (kwh > TARIFF.retail.freeAtOrBelowKwh) rm += TARIFF.retail.rm;
     return rm;
   }
 
@@ -107,7 +127,8 @@
       figures: {
         // REAL only while the month still equals the owner's own bill; any change to the home breaks the match
         monthKwh:   { value: kwhTotal, grade: c.billKwh != null && Math.abs(kwhTotal - c.billKwh) < 1 ? GRADE.REAL : GRADE.ILLUSTRATIVE, unit: 'kWh', label: 'Electricity this month' },
-        monthBill:  { value: elecRm, grade: GRADE.ILLUSTRATIVE, unit: 'RM', label: 'Electricity bill' },
+        // a published tariff applied to the owner's own kWh is SOURCED; applied to a simulated month it is still a guess
+        monthBill:  { value: elecRm, grade: c.billKwh != null && Math.abs(kwhTotal - c.billKwh) < 1 ? GRADE.SOURCED : GRADE.ILLUSTRATIVE, unit: 'RM', label: 'Electricity bill' },
         carbonKg:   { value: elecKg + carKg, grade: GRADE.ILLUSTRATIVE, unit: 'kg CO2', label: 'Carbon, home and short trips' },
         carRm:      { value: carRm, grade: GRADE.ILLUSTRATIVE, unit: 'RM', label: 'Car cost, short trips' },
         walkMin:    { value: walkMin, grade: GRADE.ILLUSTRATIVE, unit: 'min', label: 'Walking this month' },
@@ -364,7 +385,7 @@
       .sort((a, b) => b.carbonKg - a.carbonKg).slice(0, n || 2);
   }
 
-  const API = { validLeverSet, applyLevers, combinedEffect, homeLabel, compare, nearestOtherLot, COMPARE_ROWS, CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
+  const API = { SOURCES, validLeverSet, applyLevers, combinedEffect, homeLabel, compare, nearestOtherLot, COMPARE_ROWS, CONDO_LEVELS, PLOT_SLOTS, LOTS, STOP_POS, TOWNSHIP_CENTRE, FOOTPRINT, lotNeighbourType, metresPerUnit, validLot, lotDistanceKm, stopKmFor, lotInfo, tripPath, buildingRects, calibrate, inspectInfo, LEVERS, choiceOnDay, acIsOn, weatherAt, tripsOnDay, tripsUpTo, tripModeOf, EVENTS, newGame, gameInput, play, isFinished, suggest, applyLever, GRADE, ASSUME, TARIFF, HOUSES, DEFAULTS, NEIGHBOUR, simulate, scores, bill, tempAt, nightHotHours, dayMeanTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.Terrarium = API;
 })(typeof window !== 'undefined' ? window : globalThis);

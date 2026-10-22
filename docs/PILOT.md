@@ -17,7 +17,7 @@ Bill data route: the owner types their own monthly kWh. TNB's pages say smart-me
 
 ## What it measures
 - **Uptake:** how many invited homes open it, and how many reach week 4 and week 8.
-- **Model error:** the gap between the simulated month and the real bill, per home. This says which placeholder to replace first (tariff, base load, air-con).
+- **Model error:** the gap between the simulated month and the real bill, per home. This says which placeholder to replace first (base load, air-con; the tariff is already the published one).
 - **Stated change:** the share who say it changed a decision.
 
 ## Proposed thresholds (to be agreed, not findings)

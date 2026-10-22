@@ -69,7 +69,43 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(10,20,12,.62);padding:16px}.gate[hidden]{display:none}
 .gatebox{width:min(440px,100%);max-height:92vh;overflow:auto}.gatebox h1,.gatebox h2{margin:0 0 6px;font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink)}
 .gatebox input[type=email],.gatebox input[type=password],.gatebox input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
-.chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}#saveState{font-size:12px;color:var(--muted,#8a9a8f)}#saveState.bad{color:#e58a7b}#recCode{font:600 clamp(12px,4.3vw,20px)/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;white-space:nowrap;text-align:center;padding:14px 8px;margin:10px 0;border-radius:8px;background:var(--g3);color:var(--ink);user-select:all;word-break:break-all}.linkbtn{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
+.chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}#saveState{font-size:12px;color:var(--muted,#8a9a8f)}#saveState.bad{color:#e58a7b}#recCode{font:600 clamp(12px,4.3vw,20px)/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;white-space:nowrap;text-align:center;padding:14px 8px;margin:10px 0;border-radius:8px;background:var(--g3);color:var(--ink);user-select:all;word-break:break-all}
+.dash-head{display:grid;gap:14px}.dh-main{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.dh-ring{display:grid;justify-items:center;gap:6px}
+.ring{width:128px;height:128px}.ring-bg{stroke:var(--g3)}.ring-fg{stroke:var(--g1)}.ring-n{font:700 34px system-ui,sans-serif;fill:var(--g1)}.ring-s{font-size:11px;fill:var(--mute)}
+.dh-text{flex:1;min-width:220px}.dh-text h2{margin:0 0 6px}.dh-sentence{margin:0;font-size:17px;line-height:1.45}
+.dh-tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.delta{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:3px}.delta b{font-size:24px}.delta.good{border-color:#b9d9a6;background:#f3faee}.delta.bad{border-color:#f0cf9f;background:#fff8ec}
+.delta.illus{border-style:dashed;background:var(--card)}.dpill{font-size:12px;font-weight:600}.delta.illus .dpill{color:var(--mute)}
+.matched{margin:0;padding:10px 12px;border-radius:10px;border:1px solid #b9d9a6;background:#f3faee;font-size:13px;color:var(--real)}.delta.good .dpill{color:var(--real)}.delta.bad .dpill{color:var(--warn)}
+.pchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pchip{font-size:12px;border-radius:999px;padding:2px 8px;border:1px solid var(--line);color:var(--mute)}
+.pchip.good{color:var(--real);border-color:#b9d9a6;background:#f3faee}.pchip.bad{color:var(--warn);border-color:#f0cf9f;background:#fff8ec}.pchip.cap{border-style:dashed}
+.drv{display:grid;gap:4px;margin-top:6px}.drv-l{font-size:12px;color:var(--mute)}.drv-row{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px}
+.drv-bar{height:8px;border-radius:8px;background:var(--g3);overflow:hidden;display:block}.drv-bar i{display:block;height:100%}.drv-bar.you.good i{background:var(--g1)}.drv-bar.you.bad i{background:var(--warn)}.drv-bar.you.illus i{background:#6f8f5b}.drv-bar.nb i{background:#9aa89d}
+.how summary{cursor:pointer;font-size:12px;color:var(--mute);margin-top:8px;min-height:24px}
+#chart{width:100%;height:auto;display:block}#chart:focus-visible{outline:2px solid var(--g1);outline-offset:2px;border-radius:6px}
+#chart .grid,.floorchart .grid{stroke:currentColor;opacity:.12}#chart .ax,.floorchart .ax{font-size:11px;fill:currentColor;opacity:.65}
+#chart .bar-grid{fill:var(--g1)}#chart .bar-sun{fill:#d9a521}#chart .clockmark{fill:none;stroke:var(--ink);stroke-width:1.3;stroke-dasharray:3 2;pointer-events:none}
+#chart .nbline{stroke:var(--ink);stroke-width:1.6;stroke-dasharray:4 3}#chart .heat{fill:#f4d9a8;opacity:.45}#chart .heatl{opacity:.85}#chart .daymark{fill:var(--g2);opacity:.2;pointer-events:none}
+.readout{min-height:2.7em;font-size:13px;margin:6px 0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;list-style:none;padding:0;margin:4px 0;font-size:12px;color:var(--mute)}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
+.lg-grid{background:var(--g1)}.lg-sun{background:#d9a521}.lg-nb{background:none;border-top:2px dashed var(--ink);height:0!important;vertical-align:3px!important}.lg-heat{background:#f4d9a8}.lg-clock{background:none;border:1.5px dashed var(--ink)}
+.phoneonly{display:none}@media(max-width:900px){.phoneonly{display:inline-flex}}
+.tscroll{overflow:auto;max-height:260px}.mtable{width:100%;border-collapse:collapse;font-size:12px}.mtable th,.mtable td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right}.mtable th:first-child{text-align:left}
+.levers{display:grid;gap:2px}.lever{display:grid;gap:6px 14px;grid-template-columns:minmax(0,1.2fr) minmax(90px,1fr) auto;grid-template-areas:"l b g" "n n n";align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.lever .lv-label{grid-area:l;font-weight:600}.lever .lv-bars{grid-area:b;display:grid;gap:4px}.lever .lever-go{grid-area:g;min-height:40px;min-width:68px}.lever .lv-nums{grid-area:n;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--mute)}.lever.dim{opacity:.62}
+.lv-bar{height:8px;border-radius:8px;background:var(--g3);overflow:hidden}.lv-bar i{display:block;height:100%;background:var(--g1)}.lv-bar.carbon i{background:#6f8f5b}.lv-c{font-weight:700;color:var(--ink)}.lv-why{font-style:italic}
+.floorchart{width:100%;height:auto;display:block}.floorchart .floor-bar{fill:#bfd8b0;cursor:pointer}.floorchart .floor-bar:hover{fill:#9cc486}.floorchart .floor-bar.sel{fill:var(--g1)}
+.floornotes,.caveats{padding-left:18px;font-size:12.5px;color:var(--mute)}.caveats{font-size:13px}
+@media(max-width:900px){.layout>.col:first-child{order:2}}
+.about{display:grid;gap:14px;padding:14px 16px;max-width:900px;margin:0 auto}
+.gradedefs{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.gradedef{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;align-content:start}.gradedef p{margin:0}
+.srcs{display:grid}.srcrow{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:5px}.srcrow:first-child{border-top:0}
+.src-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.src-v{font-size:20px;font-weight:700}.src-unit{font-size:13px;font-weight:400;color:var(--mute)}
+.src-note,.src-caveat,.src-cite,.src-read{margin:0;font-size:13px}.src-note{color:var(--ink)}.src-cite{color:var(--mute);overflow-wrap:anywhere}.src-cite a{color:var(--src)}
+.src-read{font-weight:600}.src-read.primary{color:var(--real)}.src-read.secondary{color:var(--src)}.src-read.carried,.src-read.ILLUSTRATIVE{color:var(--ill)}.src-caveat{color:var(--mute);font-style:italic}.src-tariff{margin:2px 0;padding-left:18px;font-size:13px}
+.faq{border-top:1px solid var(--line);padding:6px 0}.faq summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}.faq p{margin:6px 0 4px;font-size:14px;line-height:1.5;color:var(--ink)}
+.facts{margin:0;display:grid;gap:10px}.facts dt{font-weight:600;font-size:13px}.facts dd{margin:0;font-size:14px;line-height:1.5}.terms{padding-left:18px;font-size:14px;line-height:1.55}
+.linkbtn{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
 .hud-bc{bottom:64px;left:50%;transform:translateX(-50%);width:min(470px,92%)}.hud-bc select{width:100%;padding:7px;border-radius:8px;border:1px solid rgba(0,0,0,.18);background:#fff;color:#16241a;font:inherit}.hud-bc .rd{font-size:12px;color:#5b6b5f;margin:6px 0}
 .tag3d.lotlabel{background:rgba(21,101,192,.82)}
 .cmpgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.cmpgrid select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
@@ -109,7 +145,7 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
 <body>
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
-  <nav class="tabs" id="tabs" aria-label="Pages"><a href="#/map" id="tabMap" aria-current="page">Map</a><a href="#/analysis" id="tabAnalysis">Analysis</a></nav>
+  <nav class="tabs" id="tabs" aria-label="Pages"><a href="#/map" id="tabMap" aria-current="page">Map</a><a href="#/analysis" id="tabAnalysis">Analysis</a><a href="#/about" id="tabAbout">About</a></nav>
   <div class="chip" id="userChip" hidden><b id="userName"></b><span id="saveState" aria-live="polite"></span>
     <details class="acct" id="acct"><summary aria-label="Account menu">Menu</summary><div class="acctmenu"><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="compareBtn">Compare</button><button type="button" id="recoveryBtn" hidden>Recovery code</button></div></details>
     <button type="button" id="signOut">Log out</button></div>
@@ -129,6 +165,7 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
       <p class="note" id="gateModeRow" hidden><button type="button" id="gateMode" class="linkbtn"></button></p>
       <p class="note" id="gateForgotRow" hidden><button type="button" id="gateForgot" class="linkbtn">Forgot password?</button></p>
     </form>
+    <p class="note"><a href="#/about" id="gateAbout">How are the numbers made?</a> Read where every figure comes from, before you sign up.</p>
     <p class="note" id="gateNote">Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.</p>
   </div>
 </div>
@@ -212,11 +249,21 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
       </div>
   </div>
 </main>
+<main id="viewAbout" class="view" aria-labelledby="hAbout" hidden>
+  <h2 class="sr" id="hAbout">About the numbers</h2>
+  <div class="about">
+    <section class="card" id="aboutGrades" aria-label="Grades"></section>
+    <section class="card" id="aboutSources" aria-label="Sources"></section>
+    <section class="card" id="aboutFaq" aria-label="Questions"></section>
+    <section class="card" id="aboutData" aria-label="What an account keeps"></section>
+    <section class="card" id="aboutTerms" aria-label="What this is and is not"></section>
+  </div>
+</main>
 <main id="viewAnalysis" class="view" aria-labelledby="hAna" hidden>
   <h2 class="sr" id="hAna">Analysis</h2>
   <div class="anabar" id="anaBar" aria-label="Your home">
     <span><b>Your home:</b> <span id="anaHome"></span></span>
-    <span class="row" style="margin-top:0"><button type="button" id="anaMap">Show on the map</button><button type="button" id="anaCompare">Compare</button><button type="button" id="anaMonth">My month</button></span>
+    <span class="row" style="margin-top:0"><button type="button" id="anaChoices" class="phoneonly">Change your choices</button><button type="button" id="anaMap">Show on the map</button><button type="button" id="anaCompare">Compare</button><button type="button" id="anaMonth">My month</button></span>
   </div>
   <div class="layout">
     <div class="col">
@@ -265,28 +312,42 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
         <div class="row"><button type="button" id="mcpCopy" hidden>Copy the config</button><span class="vs" id="mcpCopied" role="status"></span></div>
       </section>
     </div>
-    <div class="col">
+    <div class="col dash">
+      <section class="card dash-head" id="dashHead" aria-label="Summary"></section>
       <section class="card" aria-label="Pillar scores">
-      <h2>Your score against SDP's four pillars <span class="vs" id="total"></span></h2>
-      <div class="pillars" id="pillars"></div>
-    </section>
+        <h2>Your score against SDP's four pillars <span class="vs" id="total"></span></h2>
+        <div class="pillars" id="pillars"></div>
+      </section>
       <section class="card" aria-label="The month">
-      <h2>The month</h2>
-      
-      <svg id="chart" viewBox="0 0 640 220" role="img" aria-label="Daily electricity use and temperature"></svg>
-      <p class="note">The highlighted bars are the days the clock has reached. Bars are daily net electricity (kWh). The line is the mocked daily mean temperature. Weather is a mock profile; live forecast data is a later phase.</p>
-    </section>
+        <h2>The month</h2>
+        <svg id="chart" viewBox="0 0 640 240" role="group" tabindex="0" aria-label="Daily electricity use"></svg>
+        <p class="readout" id="chartReadout" aria-live="polite"></p>
+        <ul class="legend"><li><i class="lg-grid"></i>Your electricity from the grid</li><li><i class="lg-sun"></i>Offset by solar</li><li><i class="lg-nb"></i>Neighbour average</li><li><i class="lg-heat"></i>Heat spell</li><li><i class="lg-clock"></i>Day on the Map clock</li></ul>
+        <details class="how"><summary>Show the month as a table</summary><div class="tscroll"><table class="mtable" id="monthTable"></table></div></details>
+        <p class="note">The whole month is drawn; the outlined day is where the clock on the Map page is. Weather is a mock profile; live forecast data is a later phase.</p>
+      </section>
+      <section class="card" id="levers" aria-label="What would change it"></section>
+      <section class="card" id="floors" aria-label="Your floor" hidden></section>
       <section class="card" aria-label="Figures">
-      <h2>Figures for the month</h2>
-      <div class="figs" id="figs"></div>
-      <p class="note">REAL: public data, cited. SOURCED: assumption with a source. ILLUSTRATIVE: a placeholder to replace. Only REAL and SOURCED figures can be headlined.</p>
-    </section>
+        <h2>Figures for the month</h2>
+        <div class="figs" id="figs"></div>
+        <p class="note" id="gradeLine"></p>
+        <p class="note"><button type="button" class="linkbtn" id="anaAbout">Where do these numbers come from?</button></p>
+        <p class="note">REAL: public data, cited. SOURCED: assumption with a source. ILLUSTRATIVE: a placeholder to replace. Only REAL and SOURCED figures can be headlined.</p>
+      </section>
+      <section class="card" aria-label="Limits">
+        <h2>What this does not tell you</h2>
+        <ul class="caveats" id="caveats"></ul>
+      </section>
     </div>
   </div>
 </main>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
 <script src="logic.js"></script>
+<script src="dashboard.js"></script>
+<script src="dashview.js"></script>
+<script src="aboutview.js"></script>
 <div class="gate" id="recovery" role="dialog" aria-modal="true" aria-labelledby="recTitle" hidden>
   <div class="card gatebox">
     <div id="recShow" hidden>

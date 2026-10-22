@@ -31,9 +31,16 @@ test('the suggestion card matches the top suggestion', () => {
   const c = fresh(), r = say('what should I change first?', c), top = T.suggest(c.input, 1)[0];
   assert.strictEqual(r.cards.find((x) => x.type === 'confirm').lever, top.key);
 });
-test('where_from reports the true grade: REAL for the stop, ILLUSTRATIVE for the carbon factor', () => {
+test('where_from reports the true grade: REAL for the stop, SOURCED for the carbon factor and the tariff, ILLUSTRATIVE for walking pace', () => {
   assert.ok(words(say('how far is the bus stop?')).includes('Grade: REAL'));
-  assert.ok(words(say('where does the carbon number come from?')).includes('Grade: ILLUSTRATIVE'));
+  assert.ok(words(say('where does the carbon number come from?')).includes('Grade: SOURCED'));
+  assert.ok(words(say('where does the bill come from?')).includes('Grade: SOURCED'));
+  assert.ok(words(say('where does the walking time come from?')).includes('Grade: ILLUSTRATIVE'));
+});
+test('where_from answers about the bill and the carbon from their own entries, not a stand-in', () => {
+  const bill = words(say('where does the bill come from?')), carbon = words(say('where does the carbon number come from?'));
+  assert.ok(/0\.444/.test(bill) && /27\.03/.test(bill) && /July 2025/.test(bill) && /fuel adjustment/.test(bill), bill);
+  assert.ok(/0\.74/.test(carbon) && /Energy Commission/.test(carbon) && /2024/.test(carbon), carbon);
 });
 test('answers are deterministic', () => { assert.deepStrictEqual(say('give me the briefing'), say('give me the briefing')); });
 
@@ -100,9 +107,10 @@ test('verifier: a lever claim with a false value is withheld, and a true one pas
   assert.ok(!A.ask('x', c, mk(real)).withheld);
 });
 test('each grade carries its own explanation: public data, published source, placeholder', () => {
-  const stop = words(say('how far is the bus stop?')), carbon = words(say('where does the carbon number come from?'));
+  const stop = words(say('how far is the bus stop?')), carbon = words(say('where does the carbon number come from?')), walk = words(say('where does the walking time come from?'));
   assert.ok(stop.includes('Grade: REAL') && stop.includes('public data') && !stop.includes('placeholder'));
-  assert.ok(carbon.includes('Grade: ILLUSTRATIVE') && carbon.includes('placeholder') && !carbon.includes('public data'));
+  assert.ok(carbon.includes('Grade: SOURCED') && carbon.includes('published source') && !carbon.includes('placeholder') && !carbon.includes('public data'));
+  assert.ok(walk.includes('Grade: ILLUSTRATIVE') && walk.includes('placeholder') && !walk.includes('public data'));
   const sourced = A.ask('x', fresh(), () => A.answerQuestion('x', fresh(), () => ({ intent: 's', calls: [{ tool: 'where_from', args: { name: 'nudgeCap' } }] })));
   assert.ok(!sourced.withheld && words(sourced).includes('Grade: SOURCED') && words(sourced).includes('published source'));
 });

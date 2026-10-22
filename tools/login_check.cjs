@@ -12,7 +12,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const html = read('index.html')
     .replace(/<script src="vendor\/[^"]*"><\/script>\s*/g, '').replace(/<script src="scene.js"><\/script>\s*/, '')
     .replace('<script src="config.js"></script>', '<script>window.TERRARIUM_API = ' + JSON.stringify(BASE) + ';</script>')
-    .replace(/<script src="(logic|profile|remote|mcpconfig|assistant|app)\.js"><\/script>/g, (m, f) => '<script>' + read(f + '.js') + '</script>');
+    .replace(/<script src="(logic|dashboard|dashview|aboutview|profile|remote|mcpconfig|assistant|app)\.js"><\/script>/g, (m, f) => '<script>' + read(f + '.js') + '</script>');
   const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/', beforeParse(w) {
     w.fetch = async (url, init) => { calls.push(init.method + ' ' + url.replace(BASE, '')); if (down) throw new Error('offline'); return api.fetch(new Request(url, init)); };
   } });
@@ -30,6 +30,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(Object.entries(csp).every(([k, v]) => v.every((x) => ["'self'", "'none'"].includes(x) || (k === 'style-src' && x === "'unsafe-inline'") || (k === 'connect-src' && x === new URL(live || 'https://none.invalid').origin))), 'every source in the policy is this site, nothing, the API address, or inline styles: no wildcard, no https:, no data:');
   ok(csp['connect-src'].every((x) => x === "'self'" || x === new URL(live || 'https://none.invalid').origin), 'and to nothing else');
   ok(!$('gate').hidden, 'a first visit shows the gate');
+  // the About page is public: the gate steps aside for it and comes back when the visitor leaves
+  $('gateAbout').click(); await wait(50);
+  ok($('gate').hidden && !$('viewAbout').hidden && w.location.hash === '#/about', 'from the gate, "How are the numbers made?" opens the About page without signing in');
+  ok(/Energy Commission/.test($('aboutSources').textContent) && calls.length === 0, 'it is readable by a visitor who has no account, and sends nothing to the server');
+  $('tabMap').click(); await wait(50);
+  ok(!$('gate').hidden && $('viewAbout').hidden, 'leaving About brings the gate back, because there is still no login');
   ok(!$('gatePwRow').hidden && !$('gateModeRow').hidden && $('gateGo').textContent === 'Log in' && $('gateMode').textContent === 'New here? Create an account', 'with the API on, the gate asks for a password and offers to create an account');
   ok(calls.length === 0, 'opening the page sends nothing');
 
