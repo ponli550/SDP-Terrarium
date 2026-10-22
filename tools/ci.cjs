@@ -6,7 +6,7 @@
 const { spawnSync } = require('child_process'), fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..'), full = process.argv.includes('--full');
 const sh = (cmd, args, opts) => spawnSync(cmd, args, Object.assign({ cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }, opts));
-const results = [];
+const results = []; let counts = null, browserCount = null;   // what the test steps measured, so the deck can be held to it
 function step(name, fn) {
   const t = Date.now(); let r; try { r = fn(); } catch (e) { r = { ok: false, detail: String(e && e.message || e) }; }
   const s = ((Date.now() - t) / 1000).toFixed(1) + 's';
@@ -24,8 +24,9 @@ step('syntax of every script', () => {
 
 step('unit, assistant, MCP, page tests', () => {
   const r = sh('npm', ['test', '--silent']); const out = (r.stdout || '') + (r.stderr || '');
-  const m = out.match(/tests (\d+)/), p = out.match(/site checks passed: (\d+)/);
-  return { ok: r.status === 0, detail: r.status === 0 ? (m ? m[1] + ' tests, ' : '') + (p ? p[1] + ' page checks' : '') : out.split('\n').filter((l) => /not ok|fail|Error|Assertion/i.test(l)).slice(0, 8).join('\n') || out.slice(-600) };
+  const m = out.match(/tests (\d+)/), p = out.match(/site checks passed: (\d+)/), l = out.match(/login checks passed: (\d+)/);
+  if (r.status === 0 && m && p) counts = { tests: +m[1], page: +p[1] + (l ? +l[1] : 0) };
+  return { ok: r.status === 0, detail: r.status === 0 ? (m ? m[1] + ' tests, ' : '') + (counts ? counts.page + ' page checks' : '') : out.split('\n').filter((l) => /not ok|fail|Error|Assertion/i.test(l)).slice(0, 8).join('\n') || out.slice(-600) };
 });
 
 step('no secrets or personal data tracked', () => {
@@ -56,8 +57,29 @@ step('deck has one page per section', () => {
 
 if (full) step('real-Chrome suite (about ten minutes)', () => {
   const r = sh('node', ['tools/browser_check.cjs'], { timeout: 1500000 }); const out = (r.stdout || '') + (r.stderr || '');
-  const m = out.match(/browser checks passed: (\d+)/);
+  const m = out.match(/browser checks passed: (\d+)/); if (m) browserCount = +m[1];
   return { ok: r.status === 0 && !!m, detail: m ? m[1] + ' checks' : (out.match(/AssertionError[^\n]*/) || [out.slice(-400)])[0] };
+});
+
+// The organisers' template (slides 6 to 18) fixes the deck's order, and caps the last slide at 100 words. The counts on the Feasibility slide are typed by hand,
+// so they are held to what the test steps just measured (the browser count only when the full suite has run, otherwise to the README's).
+step('deck follows the template and the counts', () => {
+  const pitch = path.join(root, 'docs/PITCH.md'); if (!fs.existsSync(pitch)) return { ok: true, skipped: true, detail: 'no deck' };
+  const md = fs.readFileSync(pitch, 'utf8'), secs = md.split(/^## /m).slice(1).map((s) => ({ title: s.split('\n')[0].trim(), body: s.split('\n').slice(1).join('\n') })), bad = [];
+  const want = ['Team Information', '1. The Problem', '2. Target User', '3. Your Solution', '4. Innovation', '5. How it Works', '6. Impact', '7. Feasibility', '8. Implementation', 'Visual Concept', 'Why Your Team Should Win', 'Thank You'];
+  if (JSON.stringify(secs.slice(1, 13).map((s) => s.title)) !== JSON.stringify(want)) bad.push('sections 2 to 13 are not the template\'s: ' + secs.slice(1, 13).map((s) => s.title).join(' | '));
+  const win = secs.find((s) => s.title === 'Why Your Team Should Win'), words = win ? win.body.replace(/\*\*/g, '').split(/\s+/).filter(Boolean).length : 0;
+  if (!win || words > 100) bad.push('Why Your Team Should Win is ' + words + ' words; the template allows 100');
+  const feas = (secs.find((s) => s.title === '7. Feasibility') || { body: '' }).body.match(/(\d+) automated tests, (\d+) page checks and (\d+) checks in a real browser/);
+  const readme = (fs.readFileSync(path.join(root, 'README.md'), 'utf8').match(/real-browser suite \((\d+) checks/) || [])[1];
+  if (!feas) bad.push('the Feasibility slide no longer states the test counts');
+  else {
+    if (counts && +feas[1] !== counts.tests) bad.push('the deck says ' + feas[1] + ' automated tests; the suite ran ' + counts.tests);
+    if (counts && +feas[2] !== counts.page) bad.push('the deck says ' + feas[2] + ' page checks; the suite ran ' + counts.page);
+    const real = browserCount !== null ? browserCount : readme ? +readme : null;
+    if (real !== null && +feas[3] !== real) bad.push('the deck says ' + feas[3] + ' real-browser checks; ' + (browserCount !== null ? 'the suite ran ' : 'the README says ') + real);
+  }
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('\n') : secs.length + ' sections in the template\'s order, ' + words + ' words to win' + (counts ? ', counts match' : '') };
 });
 
 const failed = results.filter((r) => !r.ok && !r.skipped);

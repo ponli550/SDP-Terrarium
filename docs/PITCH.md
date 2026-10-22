@@ -1,100 +1,113 @@
 ## What will living here cost me?
 
-See a month in your home before you sign for it
+Terrarium · Team SelfDev
 
-Township of Tomorrow · Elmina
+See a month in your home before you sign for it. Township of Tomorrow · Elmina.
 
-**Team SelfDev:** Irfan Ali (software engineer) · Imarsya (cyber security) · Aimi (data science) · Adief (cyber security) · Bashirah (forensics)
+## Team Information
 
-## The problem
+- **Team Name:** SelfDev
+- **Team Leader:** Irfan Ali
+- **University:** [University to add]
+- **Team Members:** Irfan Ali (software engineer), Imarsya (cyber security), Aimi (data science), Adief (cyber security), Bashirah (forensics)
+- **Email:** [Email to add]
+- **Contact Number:** [Contact number to add]
 
-A buyer signs for a home without knowing what it will cost to live in. **The electricity bill, the daily trips, and how the house copes with a hot week are all discovered after handover.**
+## 1. The Problem
 
-A typical showroom visit: the buyer sees 3D models of the township, the LRT line, the houses and the apartments. **They cannot see how a home copes in a hot week, what it costs to run, or whether it floods.**
+- A buyer signs for a home without knowing what it will cost to live in.
+- The electricity bill, the daily trips and how the home copes in a hot week are all discovered after handover.
+- A showroom shows 3D models of the township, the LRT line, the houses and the apartments. It cannot show how a home behaves, what it costs to run, or whether it floods.
+- Every buyer is affected. **We have not yet spoken to one.** [Buyer quote to add]
 
-We show the first two, as illustrations. **Flooding is not in our model yet.**
+## 2. Target User
 
-**We have not yet spoken to a buyer. That conversation is our first next step.** [Buyer quote to add]
+- **Who:** a buyer choosing between a terrace, a semi-D and a condo, and which floor, in Elmina.
+- **Their challenge:** price and layout are the only numbers they can compare; running cost and heat are guesses.
+- **After handover:** the same person, now an owner, who can check the model against a real electricity bill.
+- **Not yet validated:** we have not interviewed a buyer, and a township manager's view is still to be asked.
 
-## What exists today
+## 3. Your Solution
 
-Sime Darby Property's own app helps owners with billing, documents, vacant-possession preparation and defect reports, and shows a virtual tour of selected properties.
+- **Terrarium:** a buyer-facing simulation of one month in an Elmina home, in 3D and as a dashboard.
+- Pick the home, the floor (up to 35 levels) and the lot, run the month, and each week set air-con, setpoint and walking.
+- It scores the home on SDP's four pillars: Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.
+- It shows what to change, with the effect on score, carbon and money.
 
-**We found nothing in it about running costs, energy or travel.** The launch article is undated, so the feature list may have grown.
+## 4. Innovation
 
-## What we measured
+- **A month lived before you sign,** not a showroom model: one simulation sets the bill, the carbon and the comfort.
+- **Honest numbers:** every figure is graded REAL, SOURCED or ILLUSTRATIVE, and only a real one is coloured as a verdict.
+- **A checked assistant,** not a language model: every figure it says is recomputed from the model before it is shown. Your own AI assistant can use it through MCP.
+- **Different from today's tools:** SDP's own app covers billing, defects and a virtual tour; we found nothing in it on running costs (the source is undated).
 
-Elmina's nearest public transit stop is **0.93 km** from the township centre, and the nearest rail station is 5.4 km away. These come from public timetable feeds (data.gov.my), with an approximate centre and straight-line distance.
+## 5. How it Works
 
-**That is a distance, not a complaint.** Whether residents find it a problem is exactly what we have not yet asked.
+- 1. Sign in, set your home, place your lot.
+- 2. See your month first: bill, carbon, trips and comfortable nights, each graded.
+- 3. Compare another home type, floor or lot.
+- 4. Play four weeks and set air-con, setpoint and walking.
+- 5. Get scored on the four pillars against an illustrative neighbour.
+- 6. After handover, type your real bill: the electricity figure becomes your own.
 
-Two more figures now have a published source: the grid carbon factor, **0.740 kg CO2e per kWh** (Energy Commission, 2024, provisional), and the July 2025 tariff, **44.43 sen per kWh** plus RM 10 a month above 600 kWh (from a news report of the regulator's schedule). The app's About page lists every number with its source and what we did not check.
+## 6. Impact
 
-## What we built
+- A buyer compares running cost and heat, not only price and layout.
+- A nudge toward less air-con and more walking. Home energy reports cut electricity by about 2% (Allcott 2011): a ceiling, not our result.
+- At scale, any home SDP sells could show its month.
+- **We have not measured any effect of our tool.**
 
-![Elmina in 3D: a condo among its neighbours, the bus stop 0.93 km away, and the biodiversity corridor](docs/media/lab.png)
-You pick a home, then run it for a month. **Everything that moves is illustrative.**
+## 7. Feasibility
 
-## How it works
+- **Runs today** in the browser: 278 automated tests, 360 page checks and 118 checks in a real browser.
+- **Public data only, no SDP data:** one real distance (0.93 km), a sourced grid factor and a sourced tariff.
+- **Light to run:** a static site and a small account service.
+- **Limits:** the air-con and shade maths and the score formulas are placeholders; flooding is not modelled.
 
-1. **Sign in, set your home, place your lot.** Edit any of it later.
-2. **See your month first,** with every figure checked.
-3. **Compare** another home type, floor or lot side by side.
-4. **Each week,** set air-con, setpoint and walking.
-5. **Watch the week** play out in the township.
-6. **Get scored** on SDP's four pillars against a neighbour.
-7. **Learn the one change** that cuts the most carbon without costing comfort.
+## 8. Implementation
 
-## The same model drives everything
+- **Now:** ask recent buyers and a township manager what they want to see.
+- **Pilot (proposed):** eight weeks, one Elmina phase, new owners; collect only monthly kWh and home type, with consent (PDPA).
+- **Measure** uptake and the gap between the simulated month and the real bill. It cannot show savings.
+- **Then** replace placeholders with a metered home, add a water layer for flooding, and swap a township's stops, tariff and trees to replicate.
+- Nothing is agreed with SDP yet.
 
-![At night the windows light and the air-con glows on your home; a tall block and more trees show another choice](docs/media/night.png)
-One simulation sets the bill, the carbon and the comfort, so what you see is what is scored.
+## Visual Concept
 
-## Pull your home apart
+![The 3D map on the left and the Analysis dashboard on the right, for a condo on level 12](docs/media/visual-concept.png)
 
-![Your home lifted floor by floor over the ground beneath it, your floor marked](docs/media/exploded.png)
-Exploded view: your floors lift apart and your unit is marked. Studio view shows your home alone on a turntable, and a tap slices it open. **The ground layers below (topsoil, subsoil, rock, groundwater) are a drawing; the model has no soil or water.**
+## Why Your Team Should Win
 
-## Why it fits Sime Darby Property
+We built what a showroom cannot show: a month in the home, before you sign. It runs today, on public data only, and says plainly what is real, what is sourced and what is a placeholder. Most of it is placeholder, and the page says so. We also name what we have not done: no buyer interview yet, and no flooding model. The four pillars are Sime Darby Property's own. Give us a pilot home and a bill, and the placeholders become measurements.
 
-SDP's purpose is **"Real Estate as a Value Multiplier for People, Businesses, Economies & the Planet"**, and its strategy has four pillars. We score a home on all four: **Energy Low Carbon, Climate Resilience, Community Experience, Urban Biodiversity.**
+## Thank You
 
-SDP's 40% target covers its own operations (Scope 1 and 2). It says it is baselining Scope 3. **A resident's side is outside that target; we make one home's side visible. We have not confirmed that scope mapping.**
+Terrarium · Team SelfDev
 
-## Impact
+## Appendix A. Where the numbers come from
 
-Nudges work, modestly. Home energy reports cut electricity use by **about 2% on average** (Allcott 2011, roughly 600,000 US households; utilities ranged from 1.4% to 3.3%).
+- **REAL:** 0.93 km to the nearest transit stop and 5.4 km to rail (data.gov.my GTFS feeds); 1,450 corridor trees (SDP 2024 slide).
+- **SOURCED:** grid factor 0.740 kg CO2e per kWh (Energy Commission, 2024, provisional); July 2025 tariff, 44.43 sen per kWh plus RM 10 a month above 600 kWh (a news report of the schedule); about 2% from home energy reports (Allcott 2011).
+- **ILLUSTRATIVE:** everything else: the air-con and shade maths, the score formulas, the neighbour (one made-up household). The About page lists every number with its source.
 
-Per household that is small. The case is better buying decisions, and scale across a township. **We have not measured any effect of our tool, and the values on screen are placeholders until a real home replaces them.** Two constants behind them now have published sources (the grid carbon factor and the July 2025 tariff).
+## Appendix B. What we have not checked
 
-## Feasibility
+- That buyers want this, or that it changes any behaviour. We have not interviewed a buyer.
+- The tariff in the regulator's or TNB's own schedule (we read a news report), and whether a final grid factor replaces the provisional 2024 one.
+- Flooding, soil and drainage are not modelled; the ground layers in the exploded view are a drawing.
+- Safari, Firefox and a real phone: the browser tests ran on Chrome on one Mac.
+- Accounts have no email verification and no deletion; a forgotten password is recovered only with a one-time recovery code.
 
-A working prototype in the browser: a tested model (278 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 360 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+## Appendix C. Why it fits Sime Darby Property
 
-**Limits:** the air-con and shade maths and the scoring formulas are our placeholders. Public data gives the stop and rail distances and the corridor's trees (real); the grid carbon factor and the July 2025 tariff are sourced. Every simulated value stays a placeholder until an owner enters a bill.
+- SDP's purpose is "Real Estate as a Value Multiplier for People, Businesses, Economies & the Planet". We score a home on its four pillars.
+- SDP's 40% target covers its own operations (Scope 1 and 2). A resident's side is outside it; we make one home's side visible. We have not confirmed that mapping.
+- Links to SDP's PRIME rewards and to mall visits are hypotheses we have not tested.
 
-A pilot is proposed on a later slide. Nothing is agreed with SDP yet.
+## Appendix D. Sources
 
-## Value for SDP
-
-A buyer who sees their running cost can decide with confidence. After handover the same model takes the owner's own bill: they type the kWh, and the electricity figure becomes real.
-
-It replicates by swapping a township's stops, tariff and trees. **Links to SDP's PRIME rewards and to mall visits are hypotheses we have not tested.**
-
-## After handover: your real bill
-
-Once an owner lives in the home, they enter the kWh on their bill. The model shows how far its estimate was, matches itself to that month, and **the electricity figure is graded real. Everything else stays illustrative.**
-
-**Proposed pilot:** eight weeks, one Elmina phase, new owners, measuring uptake and model error. **It cannot show savings:** a 2% nudge is far below the month-to-month swing in a few dozen bills. Cost, partners and consent wording are not agreed.
-
-## What we have, what we do not
-
-**Checked:** the 0.93 km distance, what SDP's app covers, the roughly 2% nudge ceiling, and the model's behaviour in tests.
-
-**Not checked:** that buyers want this, that it changes any behaviour, the tariff in the regulator's own schedule (we read a news report of it), and whether managers would use it.
-
-**Next:** talk to recent buyers and a township manager, then replace the placeholders with one metered home.
-
-## Sources
-
-data.gov.my GTFS static feeds (Prasarana, KTMB), Elmina centre from OpenStreetMap · Sime Darby Property app listing and EdgeProp launch article · SDP Sustainability Strategy 2025-2030 slide · Allcott (2011), *Social norms and energy conservation*, Journal of Public Economics 95 · J-PAL, Opower home energy reports evaluation
+- data.gov.my GTFS feeds (Prasarana, KTMB); Elmina centre from OpenStreetMap.
+- Energy Commission, Grid Emission Factor in Malaysia 2022-2024 (Provisional), 23 Feb 2026.
+- July 2025 tariff: Carz explainer; Energy Commission announcement via Bernama. Detail: docs/SOURCES.md.
+- SDP app listing, EdgeProp launch article, SDP Sustainability Strategy 2025-2030 slide.
+- Allcott (2011), Journal of Public Economics 95; J-PAL, Opower evaluation.

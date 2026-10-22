@@ -1,3 +1,7 @@
 node_modules/
 .env
 .DS_Store
+
+# the organisers' template and the deck built from it are their artwork, not ours to publish
+docs/*.pptx
+.venv/
