@@ -31,7 +31,9 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 3. **Compare** another home type, floor or lot side by side.
 4. **Play the month**: each week set air-con, setpoint and walking, and watch the township run (windows light at night, the air-con glows on your home). A timeline under the scene lets you drag to any hour of the month, and the figures in the corner follow.
 5. **Switch to Studio** to see your home alone on a turntable (tap it, or press Cross-section, to slice it open: the floors, the lift, your unit, and notes drawn from the model's own condo values), or **Exploded** to pull your home apart floor by floor and see which one is yours, over the ground beneath it (topsoil, subsoil, rock, groundwater). The ground layers are a drawing: the model has no soil or water, and the screen says so.
-6. **Open Analysis** for the scores against a neighbour, the month chart, every figure with its grade, and **what to change** for the biggest cut.
+6. **Open Analysis**, a dashboard: a verdict (score ring and a one-sentence summary), the three headline figures against the neighbour, what drives each of the four pillars, the month day by day with the solar offset and the neighbour beside it, **what would change it** (every change re-run on your home, with its effect on score, carbon, money and comfort, and an Apply button), and, for a condo, **your floor** against all 35. Every figure keeps its grade, the page counts how many are real (today: none are measured, which it says), and a list says what it does not tell you.
+
+![The Analysis dashboard for a condo on level 12](docs/media/dashboard.png)
 7. **After handover**, type the kWh from your real bill and the model matches itself to it.
 
 ![Exploded view: a condo pulled apart floor by floor, your floor tinted](docs/media/exploded.png)
@@ -86,7 +88,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
-**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (108 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
+**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (118 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
 
 ## Accounts
 
