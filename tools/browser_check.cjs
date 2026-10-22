@@ -192,7 +192,7 @@ const phoneUi = (q, w, hgt) => {
   for (let i = 0; i < 9; i++) { const o = spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, url, '--allow-file-access-from-files'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || ''; const u = attr(o, 'ui'); if (u) return JSON.parse(u); }
   return null;
 };
-const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=condo&level=5&lot=0&frames=12&solarKwp=4'], ['the Analysis page', 'view=analysis&house=condo&level=5&frames=8'], ['the set-up dialog', 'wizard=1&frames=6'], ['Compare', 'compare=1&lot=1&trees=4&frames=6'], ['the first look', 'firstlook=1&frames=6']];
+const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=condo&level=5&lot=0&frames=12&solarKwp=4'], ['the Analysis page', 'view=analysis&house=condo&level=5&frames=8'], ['the set-up dialog', 'wizard=1&frames=6'], ['Compare', 'compare=1&lot=1&trees=4&frames=6'], ['the first look', 'firstlook=1&frames=6'], ['the forgot-password form', 'forgot=1&frames=6'], ['the recovery code', 'recovery=1&frames=6']];
 [[360, 740], [390, 844], [430, 932], [768, 1024]].forEach((wh) => {
   const bad = [];
   PHONE_PAGES.forEach((pg) => { const u = phoneUi(pg[1], wh[0], wh[1]); if (!u) bad.push(pg[0] + ': no data'); else { if (u.overflow.vw !== wh[0] && !(u.overflow.vw >= wh[0] - 20)) bad.push(pg[0] + ': viewport ' + u.overflow.vw); if (u.overflow.scroll > 1 || u.overflow.wide.length) bad.push(pg[0] + ': sticks out ' + u.overflow.scroll + 'px (' + u.overflow.wide.slice(0, 3).join(', ') + ')'); if (u.layout.overlaps.length) bad.push(pg[0] + ': overlap ' + u.layout.overlaps.join(', ')); if (wh[0] <= 430 && u.layout.minTap < 36) bad.push(pg[0] + ': a target is only ' + u.layout.minTap + ' px tall'); } });
@@ -201,6 +201,12 @@ const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=cond
 let pm = phoneUi('house=condo&level=5&lot=0&frames=12&solarKwp=4&menu=1', 360, 740);
 ok(pm && pm.overflow.scroll <= 1 && pm.overflow.wide.length === 0 && pm.layout.overlaps.length === 0, 'at 360 px the open account menu fits on the screen');
 
+// the account fields are drawn as wide as the email field (an unstyled password box once shipped), and the recovery code is one line at every phone width
+[[360, 740], [390, 844], [1000, 700]].forEach((wh) => {
+  const f = phoneUi('forgot=1&frames=6', wh[0], wh[1]), c = phoneUi('recovery=1&frames=6', wh[0], wh[1]);
+  ok(f && f.fields.email > 200 && f.fields.code === f.fields.email && f.fields.pw === f.fields.email, 'at ' + wh[0] + ' px the recovery-code and new-password fields are as wide as the email field (' + (f && JSON.stringify(f.fields)) + ')');
+  ok(c && c.fields.recLines === 1 && c.fields.recFits && c.fields.recW > 200, 'at ' + wh[0] + ' px the recovery code is on one line and fits its box (' + (c && JSON.stringify(c.fields)) + ')');
+});
 // The page's Content-Security-Policy is enforced by the browser: a script injected into the page, inline or as an event handler, must not run,
 // and the page must still boot under the policy. The same injection with the policy removed must run, or the first result proves nothing.
 {

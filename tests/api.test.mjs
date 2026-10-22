@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createApi, hashPassword, checkPassword } from '../api/auth.mjs';
+import { createApi, hashPassword, checkPassword, newRecoveryCode } from '../api/auth.mjs';
 import { memoryDb } from '../api/memory-db.mjs';
 
 const ORIGIN = 'https://ponli550.github.io';
@@ -150,4 +150,110 @@ test('an unknown email costs the same 100000-round hash as a real one, so timing
     await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'wrong wrong wrong' } }); const known = rounds.splice(0);
     assert.deepEqual(unknown, [100000]); assert.deepEqual(known, [100000]);
   } finally { delete crypto.subtle.deriveBits; }
+});
+
+// ---- recovery code: the way back into an account when the password is forgotten ----
+const CODE = /^[2-9A-HJKMNP-Z]{5}(-[2-9A-HJKMNP-Z]{5}){3}$/;
+const recover = (r, email, code, password = 'a brand new password 9') => r.call('POST', '/recover', { body: { email, code, password } });
+
+test('a recovery code is 20 characters in four groups, never uses 0 O 1 I L, and no two are alike', () => {
+  const seen = new Set(); for (let i = 0; i < 2000; i++) { const c = newRecoveryCode(); assert.match(c, CODE); seen.add(c); }
+  assert.equal(seen.size, 2000);
+});
+
+test('every one of the 31 characters is equally likely (no modulo bias)', () => {
+  const n = {}; let total = 0; for (let i = 0; i < 5000; i++) for (const ch of newRecoveryCode().replace(/-/g, '')) { n[ch] = (n[ch] || 0) + 1; total++; }
+  const keys = Object.keys(n); assert.equal(keys.length, 31);
+  const exp = total / 31, chi = keys.reduce((a, k) => a + (n[k] - exp) ** 2 / exp, 0);
+  assert.ok(chi < 70, 'chi-square ' + chi.toFixed(1) + ' (30 degrees of freedom; a biased generator scores in the hundreds)');
+});
+
+test('registering returns a code once, stores only a hash of it, and login never returns it', async () => {
+  const r = rig(), a = await signUp(r), b = await signUp(r, 'c@d.my');
+  assert.match(a.recoveryCode, CODE); assert.notEqual(a.recoveryCode, b.recoveryCode);
+  const stored = r.db._recovery.get('a@b.my'); assert.ok(stored && !stored.includes(a.recoveryCode.replace(/-/g, '')) && !JSON.stringify([...r.db._recovery.values()]).includes(a.recoveryCode));
+  const login = (await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).json, me = (await r.call('GET', '/me', { token: a.token })).json;
+  assert.ok(!('recoveryCode' in login) && !('recoveryCode' in me));
+});
+
+test('the right code sets a new password, ends every old session, and the old password stops working', async () => {
+  const r = rig(), a = await signUp(r), other = (await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).json.token;
+  const x = await recover(r, 'a@b.my', a.recoveryCode); assert.equal(x.status, 200); assert.ok(x.json.token && x.json.user.email === 'a@b.my');
+  assert.equal((await r.call('GET', '/me', { token: a.token })).status, 401); assert.equal((await r.call('GET', '/me', { token: other })).status, 401);
+  assert.equal((await r.call('GET', '/me', { token: x.json.token })).status, 200);
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).status, 401);
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'a brand new password 9' } })).status, 200);
+});
+
+test('a recovery code works once: it is replaced by a new one, and the old one is dead', async () => {
+  const r = rig(), a = await signUp(r), x = await recover(r, 'a@b.my', a.recoveryCode);
+  assert.match(x.json.recoveryCode, CODE); assert.notEqual(x.json.recoveryCode, a.recoveryCode);
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode, 'yet another password 7')).status, 401);
+  assert.equal((await recover(r, 'a@b.my', x.json.recoveryCode, 'yet another password 7')).status, 200);
+});
+
+test('the code is read forgivingly: lower case, spaces and missing dashes are fine', async () => {
+  const r = rig(), a = await signUp(r);
+  assert.equal((await recover(r, ' A@B.my ', a.recoveryCode.toLowerCase().replace(/-/g, ' '))).status, 200);
+});
+
+test('a wrong code, an unknown email and an account with no code are refused with the same words', async () => {
+  const r = rig(), a = await signUp(r); await signUp(r, 'c@d.my'); r.db._recovery.delete('c@d.my');
+  const wrong = await recover(r, 'a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA'), none = await recover(r, 'nobody@b.my', a.recoveryCode), nocode = await recover(r, 'c@d.my', a.recoveryCode), junk = await recover(r, 'nope', a.recoveryCode);
+  for (const x of [wrong, none, nocode, junk]) { assert.equal(x.status, 401); assert.equal(x.json.reason, 'Email or recovery code is wrong.'); }
+  assert.equal(r.db._users.get('a@b.my').pass.startsWith('pbkdf2$'), true); assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).status, 200);
+});
+
+test('five wrong codes lock recovery for 15 minutes, even for the right code; it then reopens', async () => {
+  const r = rig(), a = await signUp(r);
+  for (let i = 0; i < 5; i++) assert.equal((await recover(r, 'a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA')).status, 401);
+  const locked = await recover(r, 'a@b.my', a.recoveryCode); assert.equal(locked.status, 429); assert.ok(+locked.headers.get('retry-after') > 0);
+  r.tick(15 * 60 * 1000 + 1); assert.equal((await recover(r, 'a@b.my', a.recoveryCode)).status, 200);
+});
+
+test('being locked out of login does not block recovery, and recovering clears the login lock', async () => {
+  const r = rig(), a = await signUp(r);
+  for (let i = 0; i < 5; i++) await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'wrong wrong wrong' } });
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).status, 429);
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode)).status, 200);
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'a brand new password 9' } })).status, 200);
+});
+
+test('failed recoveries do not lock login, and the new password must meet the same rule', async () => {
+  const r = rig(), a = await signUp(r);
+  for (let i = 0; i < 5; i++) await recover(r, 'a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA');
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).status, 200);
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode, 'short')).status, 400);
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode, 'x'.repeat(129))).status, 400);
+  assert.equal((await r.call('POST', '/recover', { raw: 'junk' })).status, 400);
+});
+
+test('a logged-in user can make a new code by giving the password again; the old code dies', async () => {
+  const r = rig(), a = await signUp(r);
+  assert.equal((await r.call('POST', '/recovery-code', { body: { password: PW } })).status, 401, 'needs a token');
+  assert.equal((await r.call('POST', '/recovery-code', { token: a.token, body: { password: 'wrong wrong wrong' } })).status, 401);
+  assert.equal((await r.call('POST', '/recovery-code', { token: a.token, body: {} })).status, 401);
+  const x = await r.call('POST', '/recovery-code', { token: a.token, body: { password: PW } }); assert.equal(x.status, 200); assert.match(x.json.recoveryCode, CODE);
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode)).status, 401); assert.equal((await recover(r, 'a@b.my', x.json.recoveryCode)).status, 200);
+});
+
+test('an account made before codes existed can get one, and guessing the password through a stolen token is rate-limited', async () => {
+  const r = rig(), a = await signUp(r); r.db._recovery.clear();
+  assert.equal((await recover(r, 'a@b.my', a.recoveryCode)).status, 401);
+  for (let i = 0; i < 5; i++) assert.equal((await r.call('POST', '/recovery-code', { token: a.token, body: { password: 'wrong wrong wrong' } })).status, 401);
+  assert.equal((await r.call('POST', '/recovery-code', { token: a.token, body: { password: PW } })).status, 429);
+  r.tick(15 * 60 * 1000 + 1); assert.equal((await r.call('POST', '/recovery-code', { token: a.token, body: { password: PW } })).status, 200);
+});
+
+test('if the code cannot be stored, signing up still works and says there is no code', async () => {
+  const r = rig(); r.db.setRecovery = async () => { throw new Error('no such table: recovery'); };
+  const a = await signUp(r); assert.equal(a.ok, true); assert.equal(a.recoveryCode, null);
+  assert.equal((await r.call('POST', '/login', { body: { email: 'a@b.my', password: PW } })).status, 200);
+});
+
+test('recovery answers carry the security headers and a stored code is a salted-domain hash, not the bare code', async () => {
+  const r = rig(), a = await signUp(r), x = await recover(r, 'a@b.my', 'AAAAA-AAAAA-AAAAA-AAAAA');
+  assert.equal(x.headers.get('x-content-type-options'), 'nosniff'); assert.equal(x.headers.get('cache-control'), 'no-store');
+  const bare = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(a.recoveryCode.replace(/-/g, '')))).toString('base64url');
+  assert.notEqual(r.db._recovery.get('a@b.my'), bare);
 });

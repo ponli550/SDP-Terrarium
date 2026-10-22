@@ -9,6 +9,10 @@ export function d1Db(d1) {
     putSession: (hash, s) => run('INSERT OR REPLACE INTO sessions (hash, email, exp) VALUES (?, ?, ?)', hash, s.email, s.exp),
     getSession: (hash) => one('SELECT email, exp FROM sessions WHERE hash = ?', hash),
     delSession: (hash) => run('DELETE FROM sessions WHERE hash = ?', hash),
+    getRecovery: async (email) => { const r = await one('SELECT hash FROM recovery WHERE email = ?', email); return r ? r.hash : null; },
+    setRecovery: (email, hash) => run('INSERT OR REPLACE INTO recovery (email, hash) VALUES (?, ?)', email, hash),
+    setPass: (email, pass) => run('UPDATE users SET pass = ? WHERE email = ?', pass, email),
+    delSessionsFor: (email) => run('DELETE FROM sessions WHERE email = ?', email),
     getFails: async (email) => (await one('SELECT n, t FROM fails WHERE email = ?', email)) || { n: 0, t: 0 },
     setFails: (email, f) => run('INSERT OR REPLACE INTO fails (email, n, t) VALUES (?, ?, ?)', email, f.n, f.t),
   };

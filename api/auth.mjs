@@ -23,7 +23,16 @@ export async function checkPassword(password, stored) {
 }
 const sha256 = async (s) => b64(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))));
 // Unknown emails still pay for one hash, so timing does not reveal which emails exist. Built on first use, not at import: a Worker may not generate random values in its global scope.
-let dummy = null; const DUMMY = () => dummy || (dummy = hashPassword('not-a-real-password'));
+let dummy = null; // A recovery code is 20 characters from an alphabet with no 0/O/1/I/L, about 99 bits, shown once and kept only as a hash.
+const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+export function newRecoveryCode() {
+  const out = [];
+  while (out.length < 20) for (const b of crypto.getRandomValues(new Uint8Array(32))) if (b < 248 && out.length < 20) out.push(ALPHABET[b % 31]);   // 248 = 31 x 8: no modulo bias
+  return out.join('').replace(/(.{5})(?=.)/g, '$1-');
+}
+const normaliseCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const codeHash = (c) => sha256('recovery:' + normaliseCode(c));
+const DUMMY = () => dummy || (dummy = hashPassword('not-a-real-password'));
 
 export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
   const cors = (req) => {
@@ -66,7 +75,9 @@ export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
       const email = P.normaliseEmail(d.email);
       if (await db.getUser(email)) return fail(req, 409, 'That email already has an account. Log in instead.');
       await db.createUser({ email, pass: await hashPassword(d.password), home: {}, setUp: false, created: now() });
-      return reply(req, 201, { ok: true, token: await open(req, email), user: view({ email, home: {}, setUp: false }), isNew: true });
+      let recoveryCode = null;   // if the code cannot be stored the account still works, and the user can make a code once logged in
+      try { recoveryCode = newRecoveryCode(); await db.setRecovery(email, await codeHash(recoveryCode)); } catch (e) { recoveryCode = null; }
+      return reply(req, 201, { ok: true, token: await open(req, email), user: view({ email, home: {}, setUp: false }), isNew: true, recoveryCode });
     }
 
     if (path === '/login' && req.method === 'POST') {
@@ -81,9 +92,33 @@ export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
       return reply(req, 200, { ok: true, token: await open(req, email), user: view(u), isNew: !u.setUp });
     }
 
+    if (path === '/recover' && req.method === 'POST') {   // a forgotten password: the email and the recovery code, then a new password
+      const d = await body(req); if (!d) return fail(req, 400, 'The request could not be read.');
+      if (typeof d.password !== 'string' || d.password.length < 10 || d.password.length > 128) return fail(req, 400, 'Choose a password of 10 to 128 characters.');
+      const email = P.normaliseEmail(d.email), key = 'recover\n' + email;   // a newline cannot be in an email, so this cannot collide with a login counter
+      const tries = await db.getFails(key);
+      if (tries.n >= MAX_FAILS && now() - tries.t < WINDOW_MS) return fail(req, 429, 'Too many wrong attempts. Try again in a few minutes.', { 'retry-after': String(Math.ceil((WINDOW_MS - (now() - tries.t)) / 1000)) });
+      const u = P.validEmail(email) ? await db.getUser(email) : null, stored = u ? await db.getRecovery(email) : null, given = await codeHash(d.code);
+      if (!u || !stored || !same(enc.encode(stored), enc.encode(given))) { await db.setFails(key, { n: (now() - tries.t < WINDOW_MS ? tries.n : 0) + 1, t: now() }); return fail(req, 401, 'Email or recovery code is wrong.'); }
+      await db.setPass(email, await hashPassword(d.password));
+      await db.delSessionsFor(email);   // whoever held the old password or a stolen token is logged out
+      const recoveryCode = newRecoveryCode(); await db.setRecovery(email, await codeHash(recoveryCode));   // a code works once: this one is replaced
+      await db.setFails(key, { n: 0, t: 0 }); await db.setFails(email, { n: 0, t: 0 });
+      return reply(req, 200, { ok: true, token: await open(req, email), user: view(u), isNew: false, recoveryCode });
+    }
+
     const s = await who(req);
     if (!s) return fail(req, 401, 'You are not logged in.');
     if (path === '/me' && req.method === 'GET') return reply(req, 200, { ok: true, user: view(s.user) });
+    if (path === '/recovery-code' && req.method === 'POST') {   // a new code for a logged-in user (accounts made before codes existed, or a lost code); the password is asked again
+      const d = await body(req); if (!d) return fail(req, 400, 'The request could not be read.');
+      const email = s.user.email, tries = await db.getFails(email);
+      if (tries.n >= MAX_FAILS && now() - tries.t < WINDOW_MS) return fail(req, 429, 'Too many wrong attempts. Try again in a few minutes.', { 'retry-after': String(Math.ceil((WINDOW_MS - (now() - tries.t)) / 1000)) });
+      if (typeof d.password !== 'string' || !(await checkPassword(d.password, s.user.pass))) { await db.setFails(email, { n: (now() - tries.t < WINDOW_MS ? tries.n : 0) + 1, t: now() }); return fail(req, 401, 'Password is wrong.'); }
+      await db.setFails(email, { n: 0, t: 0 });
+      const recoveryCode = newRecoveryCode(); await db.setRecovery(email, await codeHash(recoveryCode));
+      return reply(req, 200, { ok: true, recoveryCode });
+    }
     if (path === '/logout' && req.method === 'POST') { await db.delSession(s.hash); return reply(req, 200, { ok: true }); }
     if (path === '/home' && req.method === 'PUT') {
       const d = await body(req); if (!d || !d.home || typeof d.home !== 'object' || Array.isArray(d.home)) return fail(req, 400, 'The home could not be read.');
