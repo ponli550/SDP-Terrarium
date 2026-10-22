@@ -45,14 +45,15 @@
       return { day: d.day, use: d.useKwh, solar: d.solarKwh, grid: d.netKwh, nbGrid: nd.netKwh, temp: d.meanTemp, comfort: d.comfort, heat: w.heat };
     });
 
-    // every change the model offers, with its own effect; `helps` is the same rule suggest() uses (saves carbon, costs at most 5 points of comfort)
+    // every change the model offers, with its own effect. A change helps when it saves carbon, money or score and costs at most 5 points of comfort
+    // (suggest() looks at carbon alone, so trees, which only lift the biodiversity score, would never appear there).
     var base = y;
     var levers = T.LEVERS.map(function (lv) {
       var next = T.applyLever(input, lv), f = T.simulate(next).figures, sa = T.scores(next).total;
       var carbonKg = base.carbonKg.value - f.carbonKg.value, rm = (base.monthBill.value + base.carRm.value) - (f.monthBill.value + f.carRm.value), comfortDrop = base.comfortPct.value - f.comfortPct.value;
       var unchanged = JSON.stringify(next) === JSON.stringify(input);
-      return { key: lv.key, label: lv.label, carbonKg: carbonKg, rm: rm, comfortDrop: comfortDrop, scoreGain: sa - S.total, unchanged: unchanged, helps: !unchanged && carbonKg > 0.5 && comfortDrop <= 5 };
-    }).sort(function (a, b) { return (b.helps - a.helps) || (b.carbonKg - a.carbonKg); });
+      return { key: lv.key, label: lv.label, carbonKg: carbonKg, rm: rm, comfortDrop: comfortDrop, scoreGain: sa - S.total, unchanged: unchanged, helps: !unchanged && comfortDrop <= 5 && (carbonKg > 0.5 || rm > 0.5 || sa - S.total >= 0.5) };
+    }).sort(function (a, b) { return (b.helps - a.helps) || (b.scoreGain - a.scoreGain) || (b.carbonKg - a.carbonKg); });
 
     // a condo on every floor, everything else as chosen: the floor effects are the model's own placeholders, so they carry its grade
     var floors = null;

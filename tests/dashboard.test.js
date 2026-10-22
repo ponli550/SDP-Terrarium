@@ -48,23 +48,51 @@ test('the month: thirty days, grid = use minus solar, they add up to the month, 
   assert.strictEqual(dash().days.filter((x) => x.heat).length, 0);
 });
 
-test('every change the model offers is listed with its own effect, and the helpful ones match suggest() exactly', () => {
+test('every change the model offers is listed with its own effect, and everything suggest() proposes is among the helpful ones with the same numbers', () => {
   const d = dash();
   assert.deepStrictEqual(d.levers.map((l) => l.key).sort(), T.LEVERS.map((l) => l.key).sort());
   const sug = T.suggest(HOME, 5);
+  assert.ok(sug.length >= 1, 'the sample home has changes suggest() would propose');
   sug.forEach((s) => { const l = d.levers.find((x) => x.key === s.key); close(l.carbonKg, s.carbonKg, s.key); close(l.rm, s.rm, s.key); close(l.comfortDrop, s.comfortDrop, s.key); assert.ok(l.helps, s.key + ' helps'); });
-  assert.deepStrictEqual(d.levers.filter((l) => l.helps).map((l) => l.key).sort(), sug.map((s) => s.key).sort());
 });
 
-test('levers are ranked: helpful first, then by carbon saved; one that costs comfort or changes nothing is never "helpful"', () => {
+test('a change that only lifts the score still helps: trees add biodiversity but, above the shaded floors, no carbon', () => {
+  const d = dash(), trees = d.levers.find((l) => l.key === 'trees');
+  assert.ok(Math.abs(trees.carbonKg) < 0.5 && trees.scoreGain >= 0.5, 'trees: score ' + trees.scoreGain + ', carbon ' + trees.carbonKg);
+  assert.ok(trees.helps, 'so it is offered');
+  assert.ok(!T.suggest(HOME, 5).some((s) => s.key === 'trees'), 'suggest() looks at carbon alone and misses it, which is why the dashboard has its own rule');
+});
+
+test('levers are ranked: helpful first, then by score gained, then by carbon saved; one that costs comfort or changes nothing is never helpful', () => {
   const d = dash();
   const helpful = d.levers.filter((l) => l.helps), rest = d.levers.filter((l) => !l.helps);
   assert.deepStrictEqual(d.levers.map((l) => l.key), helpful.concat(rest).map((l) => l.key));
-  for (let i = 1; i < helpful.length; i++) assert.ok(helpful[i - 1].carbonKg >= helpful[i].carbonKg);
+  for (let i = 1; i < helpful.length; i++) { const a = helpful[i - 1], b = helpful[i]; assert.ok(a.scoreGain > b.scoreGain || (a.scoreGain === b.scoreGain && a.carbonKg >= b.carbonKg), a.key + ' before ' + b.key); }
   const maxed = dash({ acHours: 0, setpoint: 28, walkShare: 1, trees: 10, solarKwp: 8 });
-  maxed.levers.forEach((l) => { assert.ok(l.unchanged || !l.helps, l.key); });
   assert.ok(maxed.levers.filter((l) => ['acHours', 'setpoint', 'walkShare', 'trees', 'solarKwp'].includes(l.key)).every((l) => l.unchanged && !l.helps), 'a home already at every limit has nothing left to change');
   const hot = dash({ acHours: 12, setpoint: 28 }); hot.levers.forEach((l) => { if (l.comfortDrop > 5) assert.ok(!l.helps, l.key + ' costs comfort'); });
+  const costly = dash().levers.find((l) => l.key === 'setpoint'); assert.ok(costly.comfortDrop > 0 && !costly.unchanged, 'the setpoint change on the sample home costs some comfort');
+});
+
+test('over 120 different homes: a helpful change never costs more than 5 comfort points, helpful ones always come first, and equal scores are ordered by carbon', () => {
+  let costly = 0, scoreOnly = 0, homes = 0;
+  [0, 2, 6, 10, 12].forEach((acHours) => [22, 24, 27].forEach((setpoint) => [0, 3].forEach((solarKwp) => [false, true].forEach((hotWeek) => [0, 5].forEach((trees) => {
+    const d = dash({ acHours, setpoint, solarKwp, hotWeek, trees }); homes++;
+    d.levers.forEach((l) => { if (l.helps) { assert.ok(l.comfortDrop <= 5 && !l.unchanged, l.key + ' helps but ' + (l.unchanged ? 'is unchanged' : 'costs ' + l.comfortDrop)); } else if (l.comfortDrop > 5) costly++; if (l.helps && Math.abs(l.carbonKg) < 0.5 && l.scoreGain >= 0.5) scoreOnly++; });
+    const flags = d.levers.map((l) => l.helps), firstUnhelpful = flags.indexOf(false); if (firstUnhelpful >= 0) assert.ok(flags.slice(firstUnhelpful).every((x) => !x), 'helpful changes come before the others');
+    const helpful = d.levers.filter((l) => l.helps);
+    for (let i = 1; i < helpful.length; i++) { const a = helpful[i - 1], b = helpful[i]; assert.ok(a.scoreGain >= b.scoreGain - 1e-12, 'by score'); if (Math.abs(a.scoreGain - b.scoreGain) < 1e-12) assert.ok(a.carbonKg >= b.carbonKg - 1e-12, 'a tie in score is ordered by carbon'); }
+  })))));
+  assert.strictEqual(homes, 120); assert.ok(costly > 0, 'some change costs more than 5 comfort points somewhere on the grid'); assert.ok(scoreOnly > 0, 'a score-only change occurs');
+});
+
+test('when the score cannot tell the changes apart (it is capped), they are ordered by carbon saved', () => {
+  // every change now moves the score by exactly 0, and the changes are listed worst-first, so only an explicit carbon order can put them right
+  const flat = Object.assign({}, T, { scores: (i) => Object.assign({}, T.scores(i), { total: 50 }), LEVERS: T.LEVERS.slice().reverse() });
+  const d = D.dashboard(flat, HOME), helpful = d.levers.filter((l) => l.helps);
+  assert.ok(helpful.length >= 2 && helpful.every((l) => l.scoreGain === 0), 'at least two changes tie on score');
+  for (let i = 1; i < helpful.length; i++) assert.ok(helpful[i - 1].carbonKg >= helpful[i].carbonKg, helpful[i - 1].key + ' saves at least as much carbon as ' + helpful[i].key);
+  assert.ok(helpful[0].carbonKg > helpful[helpful.length - 1].carbonKg, 'and they really differ, so the order is not an accident');
 });
 
 test('a lever\'s score gain is the model\'s score after the change minus the score before', () => {

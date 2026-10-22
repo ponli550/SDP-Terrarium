@@ -31,6 +31,7 @@
 
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
+  var D = window.TerrariumDashboard, DV = window.TerrariumDashView, dashData = null;   // the Analysis dashboard: its numbers, and the code that draws them
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
   var API = window.TERRARIUM_API || '', mode = 'login', busy = false;
   if (API && window.TerrariumRemote) {   // real accounts; with no API address the demo store above stays
@@ -183,6 +184,10 @@
   $('anaCompare').addEventListener('click', openCompare);
   $('anaMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
   $('anaMap').addEventListener('click', function () { go('map'); });
+  $('anaChoices').addEventListener('click', function () {   // on a phone the choices sit below the dashboard: jump to them
+    var c = $('choices'), calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (c.scrollIntoView) c.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); $('house').focus({ preventScroll: true });
+  });
   $('cmpClose').addEventListener('click', closeCompare);
   $('cmpApply').addEventListener('click', applyCompare);
   $('cmpHouse').addEventListener('change', function (e) { alt.house = e.target.value; renderCompare(); });
@@ -254,7 +259,7 @@
       '<div><small>Home carbon so far</small><b>' + (mtd * T.ASSUME.gridKgKwh.v).toFixed(0) + ' kg</b></div>' +
       '<div><small>Trips on foot / by car</small><b>' + trips.walk + ' / ' + trips.car + '</b></div>';
     $('hudClock').innerHTML = clockHtml; $('hudFigs').innerHTML = figsHtml; hudWrites += 2;
-    if (day !== clockDay) { clockDay = day; chart(sim.days); }
+    if (day !== clockDay) { clockDay = day; redrawMonth(); }
   }
 
   // ---- panels ----
@@ -270,7 +275,7 @@
     sync();
     var input = currentInput(), s = T.scores(input), f = s.you.figures; sim = s.you;
     $('total').textContent = 'home score ' + s.total.toFixed(0) + ' / 100';
-    $('pillars').innerHTML = s.pillars.map(function (p) { return '<div class="card"><div class="vs">' + p.name + '</div><div class="score">' + p.score.toFixed(0) + '</div><div class="bar"><i style="width:' + p.score + '%"></i></div><div class="formula">' + p.formula + '</div></div>'; }).join('');
+    dashData = D.dashboard(T, input); DV.render(document, { head: $('dashHead'), pillars: $('pillars'), chart: $('chart'), readout: $('chartReadout'), table: $('monthTable'), levers: $('levers'), floors: $('floors'), grades: $('gradeLine'), caveats: $('caveats') }, dashData, { T: T, locked: !!g, clockDay: function () { return clockDay; }, apply: dashApply, setLevel: dashLevel });
     var nb = s.neighbour.figures;
     $('figs').innerHTML = Object.keys(f).map(function (k) { var x = f[k], n = nb[k]; var cmp = (k === 'stopKm' || !n) ? '' : '<small>neighbour ' + fmt[x.unit](n.value) + '</small>'; return '<div class="fig"><small>' + x.label + '<span class="badge ' + x.grade + '">' + x.grade + '</span></small><b>' + fmt[x.unit](x.value) + '</b>' + cmp + '</div>'; }).join('');
     ['acHours', 'setpoint', 'walkShare'].forEach(function (k) { $(k).disabled = !!g; });
@@ -280,21 +285,16 @@
     $('skip').hidden = !anim;
     $('play').disabled = !!g;
     if (scene) scene.setInput(input);
-    chart(s.you.days); gameView(input, s); connectView();
+    gameView(input, s); connectView();
     saveProfile(false); $('editHome').disabled = $('moveHouse').disabled = $('myMonth').disabled = $('compareBtn').disabled = $('anaCompare').disabled = $('anaMonth').disabled = !!g;
     $('anaHome').textContent = T.homeLabel(st);
     if (!scene) onClock(clockDay, 12);
   }
-  function chart(days) {
-    var W = 640, H = 220, pl = 34, pb = 24, pt = 10, mx = Math.max.apply(null, days.map(function (d) { return d.netKwh; })) * 1.15 || 1, bw = (W - pl) / days.length, out = '';
-    [0, .5, 1].forEach(function (t) { var y = H - pb - t * (H - pb - pt); out += '<line x1="' + pl + '" x2="' + W + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" opacity=".12"/><text x="0" y="' + (y + 4) + '" font-size="10" fill="currentColor" opacity=".6">' + (t * mx).toFixed(0) + '</text>'; });
-    days.forEach(function (d, i) { var h = d.netKwh / mx * (H - pb - pt), x = pl + i * bw; out += '<rect x="' + (x + 1) + '" y="' + (H - pb - h) + '" width="' + (bw - 2) + '" height="' + h + '" rx="2" fill="' + (d.day <= clockDay ? 'var(--g2)' : 'var(--line)') + '"/>'; });
-    var tmin = 24, tmax = 34, pts = days.map(function (d, i) { return (pl + i * bw + bw / 2) + ',' + (H - pb - (d.meanTemp - tmin) / (tmax - tmin) * (H - pb - pt)); }).join(' ');
-    out += '<polyline points="' + pts + '" fill="none" stroke="var(--warn)" stroke-width="2"/>';
-    [1, 10, 20, 30].forEach(function (n) { out += '<text x="' + (pl + (n - 1) * bw + bw / 2) + '" y="' + (H - 6) + '" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">' + n + '</text>'; });
-    $('chart').innerHTML = out;
+  function redrawMonth() { if (dashData) DV.month(document, $('chart'), $('chartReadout'), $('monthTable'), dashData, clockDay); }
+  function dashApply(key) {   // a change from the dashboard: the same one the assistant's Apply makes
+    if (g) return; var lv = T.LEVERS.find(function (l) { return l.key === key; }); if (!lv) return; Object.assign(st, T.applyLever(st, lv)); render();
   }
-
+  function dashLevel(n) { if (g && g.weekly.length) return; st.level = n; render(); }
   // ---- the game ----
   function lastChoice() { return g.weekly.length ? g.weekly[g.weekly.length - 1] : { acHours: g.setup.acHours, setpoint: g.setup.setpoint, walkShare: g.setup.walkShare }; }
   function startWeekAnimation(w) {

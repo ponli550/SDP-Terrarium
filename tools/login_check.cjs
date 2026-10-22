@@ -12,7 +12,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const html = read('index.html')
     .replace(/<script src="vendor\/[^"]*"><\/script>\s*/g, '').replace(/<script src="scene.js"><\/script>\s*/, '')
     .replace('<script src="config.js"></script>', '<script>window.TERRARIUM_API = ' + JSON.stringify(BASE) + ';</script>')
-    .replace(/<script src="(logic|profile|remote|mcpconfig|assistant|app)\.js"><\/script>/g, (m, f) => '<script>' + read(f + '.js') + '</script>');
+    .replace(/<script src="(logic|dashboard|dashview|profile|remote|mcpconfig|assistant|app)\.js"><\/script>/g, (m, f) => '<script>' + read(f + '.js') + '</script>');
   const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/', beforeParse(w) {
     w.fetch = async (url, init) => { calls.push(init.method + ' ' + url.replace(BASE, '')); if (down) throw new Error('offline'); return api.fetch(new Request(url, init)); };
   } });
