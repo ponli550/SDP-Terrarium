@@ -1,0 +1,12 @@
+name = "terrarium-api"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://ponli550.github.io"
+
+# Run `wrangler d1 create terrarium` once, then paste its database_id here (an id is not a secret).
+[[d1_databases]]
+binding = "DB"
+database_name = "terrarium"
+database_id = "REPLACE_AFTER_d1_create"
