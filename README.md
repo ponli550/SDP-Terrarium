@@ -122,4 +122,4 @@ python3 -m venv .venv && .venv/bin/pip install python-pptx
 .venv/bin/python tools/build_pptx.py --template <the organisers' template .pptx>
 ```
 
-The template and the deck built from it are the organisers' artwork, so they are not committed (see `.gitignore`). `npm run ci` fails if the deck leaves the template's order, if Why Your Team Should Win goes over 100 words, or if the test counts on the Feasibility slide stop matching the suite. Four things are left for the team to fill in: the university, an email, a contact number, and a buyer quote.
+The template and the deck built from it are the organisers' artwork, so they are not committed (see `.gitignore`). `npm run ci` fails if the deck leaves the template's order, if Why Your Team Should Win goes over 100 words, or if the test counts on the Feasibility slide stop matching the suite. One thing is left for the team to fill in: a buyer quote on the problem slide.
