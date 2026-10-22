@@ -81,7 +81,7 @@
     return {
       label: T.homeLabel(input), total: total, headline: headline, pillars: pillars, days: days, levers: levers, floors: floors, gradeCounts: counts, figureCount: Object.keys(y).length,
       sentence: sentence, matched: matched, billKwh: matched ? input.billKwh : null,
-      caveats: (matched ? ['Only the electricity figure is your own bill. The bill in RM, the carbon, the comfort and every score are still the model\'s placeholders.'] : []).concat(['The score formulas, the tariff, the carbon factor and the floor effects are placeholders (graded ILLUSTRATIVE), not measurements.', 'The neighbour is one fixed illustrative household, not real data.', 'Weather is a mock profile.']),
+      caveats: (matched ? ['The electricity figure is your own bill, and the bill in RM follows it through the published tariff (without the monthly fuel adjustment or service tax). The carbon, the comfort and every score are still the model\'s placeholders.'] : []).concat(['The score formulas, the tariff, the carbon factor and the floor effects are placeholders (graded ILLUSTRATIVE), not measurements.', 'The neighbour is one fixed illustrative household, not real data.', 'Weather is a mock profile.']),
     };
   }
 

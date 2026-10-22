@@ -49,7 +49,7 @@
       el(doc, 'div', { class: 'dh-ring' }, [ring, el(doc, 'span', { class: 'badge ILLUSTRATIVE', title: 'The four score formulas are placeholders', text: 'placeholder scoring' })]),
       el(doc, 'div', { class: 'dh-text' }, [el(doc, 'h2', { text: d.label }), el(doc, 'p', { class: 'dh-sentence', text: d.sentence })]),
     ]));
-    if (d.matched) host.appendChild(el(doc, 'p', { class: 'matched', role: 'status', text: 'Matched to your real bill: ' + num(d.billKwh, 0) + ' kWh. The electricity figure below is your own; the bill in RM, the carbon, the comfort and every score are still the model\'s.' }));
+    if (d.matched) host.appendChild(el(doc, 'p', { class: 'matched', role: 'status', text: 'Matched to your real bill: ' + num(d.billKwh, 0) + ' kWh. The electricity figure below is your own and the bill in RM follows it through the published tariff; the carbon, the comfort and every score are still the model\'s.' }));
     host.appendChild(el(doc, 'div', { class: 'dh-tiles' }, tiles));
   }
 

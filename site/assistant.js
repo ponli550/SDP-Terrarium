@@ -147,7 +147,7 @@
     if (/bus|stop|transit|how far/.test(q)) return { intent: 'stop', calls: [{ tool: 'where_from', args: { name: 'stopKm' } }] };
     if (/where.*(come|from)|source|how sure|trust|made up|real\b|illustrative/.test(q)) {
       var name = /bill|tariff|cost|rm\b/.test(q) ? 'tariff' : /walk/.test(q) ? 'walkMinKm' : /solar/.test(q) ? 'solarPerf' : 'gridKgKwh';
-      return { intent: 'where', calls: [{ tool: 'where_from', args: { name: name === 'tariff' ? 'carKgKm' : name } }] };
+      return { intent: 'where', calls: [{ tool: 'where_from', args: { name: name } }] };
     }
     if (/(why|explain|how).*(energy|carbon).*(score|pillar)|energy.*(score|pillar)/.test(q)) return { intent: 'pillar', calls: [{ tool: 'pillar', args: { key: 'energy' } }] };
     if (/resilien|comfort|hot night/.test(q)) return { intent: 'pillar', calls: [{ tool: 'pillar', args: { key: 'resilience' } }] };

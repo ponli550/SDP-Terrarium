@@ -243,7 +243,10 @@ test('the electricity figure is REAL only while it equals the bill', () => {
   assert.strictEqual(T.simulate(Object.assign({}, billed, { acHours: 2 })).figures.monthKwh.grade, 'ILLUSTRATIVE');  // the home changed: the match is gone
   assert.strictEqual(T.simulate(Object.assign({}, billed, { trees: 9 })).figures.monthKwh.grade, 'ILLUSTRATIVE');
   assert.strictEqual(T.simulate(input).figures.monthKwh.grade, 'ILLUSTRATIVE');
-  for (const k of ['monthBill', 'carbonKg', 'walkMin', 'comfortPct']) assert.strictEqual(T.simulate(billed).figures[k].grade, 'ILLUSTRATIVE', k + ' stays a placeholder');
+  for (const k of ['carbonKg', 'walkMin', 'comfortPct']) assert.strictEqual(T.simulate(billed).figures[k].grade, 'ILLUSTRATIVE', k + ' stays a placeholder');
+  // a published tariff on the owner's own kWh is SOURCED; on a simulated month it is still a guess; and it follows the kWh exactly as the kWh figure does
+  assert.strictEqual(T.simulate(billed).figures.monthBill.grade, 'SOURCED');
+  assert.strictEqual(T.simulate(Object.assign({}, billed, { acHours: 2 })).figures.monthBill.grade, 'ILLUSTRATIVE'); assert.strictEqual(T.simulate(input).figures.monthBill.grade, 'ILLUSTRATIVE');
 });
 test('a calibrated home leaves the neighbour baseline alone', () => {
   const c = T.calibrate(T.DEFAULTS, 900), s = T.scores(Object.assign({}, T.DEFAULTS, { baseScale: c.baseScale, billKwh: 900 }));
@@ -482,7 +485,7 @@ function A_leverEffect(key) { const lv = T.LEVERS.find((l) => l.key === key), b 
 test('solar and less air-con overlap: together they save less than the sum, which is exactly the mistake adding them by hand makes', () => {
   const c = T.combinedEffect(HOMEM, ['solarKwp', 'acHours']);
   assert.ok(c.carbonSaved < c.additiveCarbon - 1 && c.rmSaved < c.additiveRm - 1, `${c.carbonSaved} vs ${c.additiveCarbon}`);
-  assert.deepStrictEqual([Math.round(c.runBefore), Math.round(c.runAfter), Math.round(c.carbonBefore), Math.round(c.carbonAfter)], [115, 48, 256, 136], 'the case a real client got wrong: it said about RM 33 and 123 kg');
+  assert.deepStrictEqual([Math.round(c.runBefore), Math.round(c.runAfter), Math.round(c.carbonBefore), Math.round(c.carbonAfter)], [167, 91, 271, 144], 'pinned to the model under the July 2025 tariff and the 0.740 grid factor; adding the two single effects by hand would give RM ' + Math.round(c.additiveRm) + ' and ' + Math.round(c.additiveCarbon) + ' kg, the model gives RM ' + Math.round(c.rmSaved) + ' and ' + Math.round(c.carbonSaved) + ' kg');
 });
 test('the combined effect is the model run on the combined home, before and after, including the score', () => {
   const c = T.combinedEffect(HOMEM, ['trees', 'walkShare', 'setpoint']), b = T.simulate(HOMEM).figures, a = T.simulate(T.applyLevers(HOMEM, ['trees', 'walkShare', 'setpoint'])).figures;
@@ -495,4 +498,38 @@ test('the changes come back in the model\'s own order whatever order they were g
 });
 test('making every change never saves less carbon than the best single change', () => {
   const all = T.combinedEffect(HOMEM, KEYS), best = Math.max(...KEYS.map((k) => T.combinedEffect(HOMEM, [k]).carbonSaved)); assert.ok(all.carbonSaved >= best - 1e-9);
+});
+
+// ---- the sourced figures: the tariff, the grid factor, and the rule that a grade above ILLUSTRATIVE needs a citation ----
+test('the bill follows the July 2025 structure: energy + capacity + network per kWh, RM 10 a month above 600 kWh, a higher energy rate above 1,500 kWh', () => {
+  const per = 0.2703 + 0.0455 + 0.1285, close = (a, b, m) => assert.ok(Math.abs(a - b) < 1e-9, m + ': ' + a + ' vs ' + b);
+  close(T.bill(0), 0, 'nothing used'); close(T.bill(100), 100 * per, '100 kWh'); close(T.bill(600), 600 * per, '600 kWh: no retail charge at or below 600');
+  close(T.bill(601), 601 * per + 10, '601 kWh: the retail charge starts'); close(T.bill(1000), 1000 * per + 10, '1,000 kWh'); close(T.bill(1500), 1500 * per + 10, '1,500 kWh');
+  close(T.bill(2000), 1500 * 0.2703 + 500 * 0.3703 + 2000 * (0.0455 + 0.1285) + 10, '2,000 kWh: the higher energy rate applies to the excess');
+  assert.ok(T.bill(601) - T.bill(600) > 9.9 && T.bill(601) - T.bill(600) < 10.6, 'the only jump is the retail charge');
+  for (let k = 1; k <= 3000; k++) assert.ok(T.bill(k) >= T.bill(k - 1), 'never falls at ' + k);
+});
+test('the assumptions table quotes the tariff the bill actually uses, and the grid factor the carbon actually uses', () => {
+  assert.ok(Math.abs(T.ASSUME.tariff.v - (T.TARIFF.energy[0][1] + T.TARIFF.capacity + T.TARIFF.network)) < 1e-12);
+  assert.strictEqual(T.ASSUME.gridKgKwh.v, 0.74); assert.strictEqual(T.ASSUME.gridKgKwh.grade, 'SOURCED'); assert.strictEqual(T.ASSUME.tariff.grade, 'SOURCED');
+  // with every short trip walked there are no car trips left, so the carbon is the electricity alone, at exactly 0.74 kg per kWh
+  const b = T.simulate({ house: 'terrace', walkShare: 1 }).figures, a = T.simulate({ house: 'terrace', walkShare: 0 }).figures;
+  assert.ok(Math.abs(b.carbonKg.value - b.monthKwh.value * 0.74) < 1e-6, 'carbon ' + b.carbonKg.value + ' vs ' + b.monthKwh.value * 0.74);
+  assert.ok(a.carbonKg.value > a.monthKwh.value * 0.74 + 1, 'and with no walking, the car adds to it');
+});
+test('SOURCES: a figure graded REAL or SOURCED has a citation, a placeholder has none, and a secondary source can never make a figure REAL', () => {
+  const entries = Object.entries(T.ASSUME);
+  entries.forEach(([k, a]) => {
+    const s = T.SOURCES[k];
+    if (a.grade === 'ILLUSTRATIVE') return assert.ok(!s, k + ' is a placeholder and must not carry a citation');
+    assert.ok(s && s.title && s.publisher && typeof s.caveat === 'string' && s.caveat.length > 10, k + ' is graded ' + a.grade + ' and needs a citation with its caveat');
+    assert.ok(['primary', 'secondary', 'carried'].includes(s.read), k + ': read is primary, secondary or carried');
+    if (s.read === 'primary' || s.read === 'secondary') assert.ok(s.url && /^https:\/\//.test(s.url) && /^\d{4}-\d\d-\d\d$/.test(s.checked), k + ': something we read has a link and the date we read it');
+    if (s.read === 'carried') assert.strictEqual(s.checked, null, k + ': a carried source has not been re-checked');
+    if (s.read === 'secondary') assert.notStrictEqual(a.grade, 'REAL', k + ': a report of a source cannot make a figure REAL');
+  });
+  Object.keys(T.SOURCES).forEach((k) => assert.ok(T.ASSUME[k], k + ' is cited but is not an assumption'));
+  Object.values(T.SOURCES).forEach((s) => assert.ok(!/re-checked/.test(s.caveat), 'the caveat says something the status line does not'));
+  assert.strictEqual(T.SOURCES.tariff.read, 'secondary'); assert.strictEqual(T.SOURCES.gridKgKwh.read, 'primary');
+  assert.ok(/left out/.test(T.SOURCES.tariff.caveat) && /not found in the Energy Commission or TNB schedule/.test(T.SOURCES.tariff.caveat), 'the tariff says what it does not cover and where it was not confirmed');
 });
