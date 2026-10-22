@@ -21,6 +21,8 @@
   var withUnit = function (v, unit, dec) { return unit === 'RM' ? 'RM ' + num(v, dec) : num(v, dec) + (unit === '%' ? '%' : ' ' + unit); };
   var badge = function (doc, grade) { return el(doc, 'span', { class: 'badge ' + grade, text: grade }); };
   var signed = function (v, d) { var r = Math.round(v * Math.pow(10, d || 0)) / Math.pow(10, d || 0); return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r).toFixed(d || 0); };
+  // on a narrow screen the charts are drawn on a narrower canvas, so a 640-unit drawing is not shrunk to a third of its size with its text
+  var isNarrow = function (doc) { var v = doc.defaultView; return !!(v && v.innerWidth && v.innerWidth < 600); };
   var DRIVER_DEC = { carbonKg: 0, comfortPct: 0, walkedTrips: 0, bioIndex: 1 };
 
   // ---- the verdict: a score ring, one sentence, the three headline figures against the neighbour ----
@@ -73,7 +75,7 @@
 
   // ---- the month: your grid use with the solar offset on top, the neighbour as a line, heat spells shaded ----
   function month(doc, svgEl, readout, table, d, clockDay) {
-    var W = 640, H = 240, pl = 36, pb = 26, pt = 12, days = d.days, bw = (W - pl) / days.length;
+    var narrow = isNarrow(doc), W = narrow ? 360 : 640, H = narrow ? 250 : 240, pl = 36, pb = 26, pt = 12, days = d.days, bw = (W - pl) / days.length;
     var mx = Math.max.apply(null, days.map(function (x) { return Math.max(x.use, x.nbGrid); })) * 1.12 || 1, yOf = function (v) { return H - pb - v / mx * (H - pb - pt); };
     clear(svgEl); svgEl.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
     // heat spells first, so they sit behind everything
@@ -152,7 +154,7 @@
     clear(host);
     if (!d.floors) { host.hidden = true; return; }
     host.hidden = false;
-    var f = d.floors, W = 640, H = 170, pl = 36, pb = 22, pt = 8, bw = (W - pl) / f.length, lo = Math.min.apply(null, f.map(function (x) { return x.kwh; })), hi = Math.max.apply(null, f.map(function (x) { return x.kwh; }));
+    var f = d.floors, narrow = isNarrow(doc), W = narrow ? 360 : 640, H = narrow ? 150 : 170, pl = 36, pb = 22, pt = 8, bw = (W - pl) / f.length, lo = Math.min.apply(null, f.map(function (x) { return x.kwh; })), hi = Math.max.apply(null, f.map(function (x) { return x.kwh; }));
     var yOf = function (v) { return H - pb - (v - lo * 0.9) / ((hi * 1.04 - lo * 0.9) || 1) * (H - pb - pt); };
     var svgEl = sv(doc, 'svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'floorchart', role: 'img', 'aria-label': 'Monthly electricity for this home on each of the ' + f.length + ' levels. Your level is highlighted.' });
     [lo, hi].forEach(function (v) { svgEl.appendChild(sv(doc, 'line', { x1: pl, x2: W, y1: yOf(v), y2: yOf(v), class: 'grid' })); svgEl.appendChild(sv(doc, 'text', { x: 0, y: yOf(v) + 4, class: 'ax', text: num(v, 0) })); });
