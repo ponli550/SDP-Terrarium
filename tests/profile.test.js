@@ -77,8 +77,8 @@ test('signIn itself returns a sanitised home, whoever calls it', () => {
   const s = P.memoryStorage(); s.setItem(P.KEY, JSON.stringify({ current: null, users: { 'a@b.co': { home: { house: 'castle', acHours: 500, evil: 1 }, setUp: true } } }));
   const r = P.createStore(s).signIn('a@b.co'); assert.deepStrictEqual(r.home, { acHours: 12 }); assert.ok(!r.isNew);
 });
-test('a level is kept as a whole floor between 1 and 8, and survives the round trip', () => {
-  assert.strictEqual(P.sanitizeHome({ level: 99 }).level, 8); assert.strictEqual(P.sanitizeHome({ level: 0 }).level, 1); assert.strictEqual(P.sanitizeHome({ level: 4.4 }).level, 4);
+test('a level is kept as a whole floor between 1 and the tallest condo, and survives the round trip', () => {
+  assert.strictEqual(P.sanitizeHome({ level: 99 }).level, require('../site/logic.js').CONDO_LEVELS);   // the saved range must follow the model, or a tall home is cut down on save assert.strictEqual(P.sanitizeHome({ level: 0 }).level, 1); assert.strictEqual(P.sanitizeHome({ level: 4.4 }).level, 4);
   assert.ok(!('level' in P.sanitizeHome({ level: 'x' })) && !('level' in P.sanitizeHome({ level: null })));
   const { store } = fresh(); store.signIn('a@b.co'); store.saveHome({ house: 'condo', level: 6, lot: 3 }, true); store.signOut(); store.signIn('a@b.co');
   assert.deepStrictEqual(store.current().home, { house: 'condo', level: 6, lot: 3 });

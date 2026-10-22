@@ -68,7 +68,7 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(10,20,12,.62);padding:16px}.gate[hidden]{display:none}
 .gatebox{width:min(440px,100%);max-height:92vh;overflow:auto}.gatebox h1,.gatebox h2{margin:0 0 6px;font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink)}
 .gatebox input[type=email]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
-.chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
+.chip{display:flex;gap:8px;align-items:center;font-size:13px}.chip[hidden]{display:none}#saveState{font-size:12px;color:var(--muted,#8a9a8f)}#saveState.bad{color:#e58a7b}.linkbtn{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}.chip b{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chip button{font-size:12px;padding:4px 10px}
 .hud-bc{bottom:64px;left:50%;transform:translateX(-50%);width:min(470px,92%)}.hud-bc select{width:100%;padding:7px;border-radius:8px;border:1px solid rgba(0,0,0,.18);background:#fff;color:#16241a;font:inherit}.hud-bc .rd{font-size:12px;color:#5b6b5f;margin:6px 0}
 .tag3d.lotlabel{background:rgba(21,101,192,.82)}
 .cmpgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.cmpgrid select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
@@ -109,7 +109,7 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
 <header>
   <h1>Terrarium <small>one month in a home, Elmina</small></h1>
   <nav class="tabs" id="tabs" aria-label="Pages"><a href="#/map" id="tabMap" aria-current="page">Map</a><a href="#/analysis" id="tabAnalysis">Analysis</a></nav>
-  <div class="chip" id="userChip" hidden><b id="userName"></b>
+  <div class="chip" id="userChip" hidden><b id="userName"></b><span id="saveState" aria-live="polite"></span>
     <details class="acct" id="acct"><summary aria-label="Account menu">Menu</summary><div class="acctmenu"><button type="button" id="editHome">Edit home</button><button type="button" id="moveHouse">Move house</button><button type="button" id="myMonth">My month</button><button type="button" id="compareBtn">Compare</button></div></details>
     <button type="button" id="signOut">Log out</button></div>
   <span class="tag">Simulated &middot; for illustration only</span>
@@ -121,8 +121,10 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
     <form id="gateForm" novalidate>
       <label for="gateEmail">Email</label>
       <input type="email" id="gateEmail" autocomplete="email" placeholder="you@example.com">
+      <div id="gatePwRow" hidden><label for="gatePw">Password</label><input type="password" id="gatePw" autocomplete="current-password" maxlength="128"></div>
       <div id="gateErr" class="chk bad" role="alert"></div>
-      <div class="row"><button class="cta" type="submit">Log in</button><button type="button" id="gateGuest">Try without logging in</button></div>
+      <div class="row"><button class="cta" type="submit" id="gateGo">Log in</button><button type="button" id="gateGuest">Try without logging in</button></div>
+      <p class="note" id="gateModeRow" hidden><button type="button" id="gateMode" class="linkbtn"></button></p>
     </form>
     <p class="note" id="gateNote">Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.</p>
   </div>
@@ -282,7 +284,9 @@ table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.cm
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
 <script src="logic.js"></script>
+<script src="config.js"></script>
 <script src="profile.js"></script>
+<script src="remote.js"></script>
 <script src="mcpconfig.js"></script>
 <script src="assistant.js"></script>
 <script src="scene.js"></script>

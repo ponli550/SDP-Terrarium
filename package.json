@@ -7,7 +7,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --test tests/model.test.js tests/assistant.test.js tests/profile.test.js tests/mcp.test.mjs && node tools/site_check.cjs",
+    "test": "node --test tests/model.test.js tests/assistant.test.js tests/profile.test.js tests/mcp.test.mjs tests/api.test.mjs tests/remote.test.mjs && node tools/site_check.cjs && node tools/login_check.cjs",
     "test:browser": "node tools/browser_check.cjs",
     "mcp": "node mcp/server.mjs",
     "mcp:config": "node mcp/print-config.mjs",
