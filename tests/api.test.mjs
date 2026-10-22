@@ -125,3 +125,29 @@ test('every response, success or error, carries the security headers', async () 
     assert.match(x.headers.get('strict-transport-security'), /max-age=31536000/); assert.match(x.headers.get('permissions-policy'), /camera=\(\)/);
   }
 });
+
+test('importing the API generates no random values: a Worker forbids that in its global scope', async () => {
+  const real = crypto.getRandomValues; let called = 0;
+  crypto.getRandomValues = (...a) => { called++; throw new Error('Disallowed operation called within global scope'); };
+  try { await import('../api/auth.mjs?cold=' + Date.now()); } finally { delete crypto.getRandomValues; if (crypto.getRandomValues !== real) crypto.getRandomValues = real; }
+  assert.equal(called, 0);
+});
+
+test('an unknown or invalid email is refused with 401, the same as a wrong password, and still pays for one hash', async () => {
+  const r = rig(); await signUp(r);
+  const unknown = await r.call('POST', '/login', { body: { email: 'nobody@b.my', password: PW } }), invalid = await r.call('POST', '/login', { body: { email: 'nope', password: PW } });
+  assert.equal(unknown.status, 401); assert.equal(invalid.status, 401);
+  const wrong = await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'wrong wrong wrong' } });
+  assert.equal(unknown.json.reason, wrong.json.reason);
+});
+
+test('an unknown email costs the same 100000-round hash as a real one, so timing does not reveal which emails exist', async () => {
+  const r = rig(); await signUp(r);
+  const real = crypto.subtle.deriveBits.bind(crypto.subtle), rounds = [];
+  crypto.subtle.deriveBits = (p, ...a) => { rounds.push(p.iterations); return real(p, ...a); };
+  try {
+    await r.call('POST', '/login', { body: { email: 'nobody@b.my', password: PW } }); const unknown = rounds.splice(0);
+    await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'wrong wrong wrong' } }); const known = rounds.splice(0);
+    assert.deepEqual(unknown, [100000]); assert.deepEqual(known, [100000]);
+  } finally { delete crypto.subtle.deriveBits; }
+});
