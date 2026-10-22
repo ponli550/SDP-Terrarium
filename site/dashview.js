@@ -36,18 +36,20 @@
       sv(doc, 'text', { x: 60, y: 80, 'text-anchor': 'middle', class: 'ring-s', text: 'of 100' }),
     ]);
     var tiles = d.headline.map(function (h) {
-      var word = h.same ? 'same as the neighbour' : Math.abs(Math.round(h.deltaPct)) + '% ' + (h.better ? 'below' : 'above') + ' the neighbour';
-      return el(doc, 'div', { class: 'delta ' + (h.same ? 'same' : h.better ? 'good' : 'bad'), 'data-key': h.key }, [
+      // colour says better or worse only for a figure that is real or sourced; a placeholder is drawn neutral. The neighbour is one made-up household, so it is always called illustrative
+      var nbWord = 'the illustrative neighbour', word = h.same ? 'same as ' + nbWord : Math.abs(Math.round(h.deltaPct)) + '% ' + (h.better ? 'below' : 'above') + ' ' + nbWord;
+      return el(doc, 'div', { class: 'delta ' + (!h.trusted ? 'illus' : h.same ? 'same' : h.better ? 'good' : 'bad'), 'data-key': h.key }, [
         el(doc, 'small', { text: h.label }, [badge(doc, h.grade)]),
         el(doc, 'b', { text: withUnit(h.you, h.unit, h.dec) }),
         el(doc, 'span', { class: 'dpill', text: word }),
-        el(doc, 'small', { text: 'neighbour ' + withUnit(h.nb, h.unit, h.dec) }),
+        el(doc, 'small', { text: 'illustrative neighbour ' + withUnit(h.nb, h.unit, h.dec) }),
       ]);
     });
     host.appendChild(el(doc, 'div', { class: 'dh-main' }, [
       el(doc, 'div', { class: 'dh-ring' }, [ring, el(doc, 'span', { class: 'badge ILLUSTRATIVE', title: 'The four score formulas are placeholders', text: 'placeholder scoring' })]),
       el(doc, 'div', { class: 'dh-text' }, [el(doc, 'h2', { text: d.label }), el(doc, 'p', { class: 'dh-sentence', text: d.sentence })]),
     ]));
+    if (d.matched) host.appendChild(el(doc, 'p', { class: 'matched', role: 'status', text: 'Matched to your real bill: ' + num(d.billKwh, 0) + ' kWh. The electricity figure below is your own; the bill in RM, the carbon, the comfort and every score are still the model\'s.' }));
     host.appendChild(el(doc, 'div', { class: 'dh-tiles' }, tiles));
   }
 
@@ -57,15 +59,15 @@
     d.pillars.forEach(function (p) {
       var dr = p.driver, dec = DRIVER_DEC[dr.key] || 0, key = { energy: 'carbonKg', resilience: 'comfortPct', community: 'walkedTrips', biodiversity: 'bioIndex' }[p.key];
       dec = DRIVER_DEC[key]; var top = Math.max(dr.you, dr.nb, 1e-9);
-      var vs = p.vsNeighbour, chip = Math.abs(vs) < 0.5 ? 'same as the neighbour' : signed(vs, 0) + ' vs the neighbour';
+      var vs = p.vsNeighbour, chip = Math.abs(vs) < 0.5 ? 'same as the illustrative neighbour' : signed(vs, 0) + ' vs the illustrative neighbour', tone = !dr.trusted ? 'illus' : Math.abs(vs) < 0.5 ? 'same' : vs > 0 ? 'good' : 'bad';
       host.appendChild(el(doc, 'div', { class: 'card pcard', 'data-pillar': p.key }, [
         el(doc, 'div', { class: 'vs', text: p.name }),
         el(doc, 'div', { class: 'score', text: num(p.score, 0) }),
         el(doc, 'div', { class: 'bar' }, [el(doc, 'i', { style: 'width:' + Math.max(0, Math.min(100, p.score)) + '%' })]),
-        el(doc, 'div', { class: 'pchips' }, [el(doc, 'span', { class: 'pchip ' + (Math.abs(vs) < 0.5 ? 'same' : vs > 0 ? 'good' : 'bad'), text: chip }), p.capped ? el(doc, 'span', { class: 'pchip cap', title: 'The score stops at 100, so doing better than this is not shown', text: 'at the 100 cap' }) : null]),
+        el(doc, 'div', { class: 'pchips' }, [el(doc, 'span', { class: 'pchip ' + tone, text: chip }), p.capped ? el(doc, 'span', { class: 'pchip cap', title: 'The score stops at 100, so doing better than this is not shown', text: 'at the 100 cap' }) : null]),
         el(doc, 'div', { class: 'drv' }, [
           el(doc, 'div', { class: 'drv-l' }, [dr.label, badge(doc, dr.grade)]),
-          el(doc, 'div', { class: 'drv-row' }, [el(doc, 'span', { text: 'You' }), el(doc, 'span', { class: 'drv-bar you ' + (dr.better ? 'good' : 'bad') }, [el(doc, 'i', { style: 'width:' + (dr.you / top * 100) + '%' })]), el(doc, 'b', { text: withUnit(dr.you, dr.unit, dec) })]),
+          el(doc, 'div', { class: 'drv-row' }, [el(doc, 'span', { text: 'You' }), el(doc, 'span', { class: 'drv-bar you ' + (!dr.trusted ? 'illus' : dr.better ? 'good' : 'bad') }, [el(doc, 'i', { style: 'width:' + (dr.you / top * 100) + '%' })]), el(doc, 'b', { text: withUnit(dr.you, dr.unit, dec) })]),
           el(doc, 'div', { class: 'drv-row' }, [el(doc, 'span', { text: 'Neighbour' }), el(doc, 'span', { class: 'drv-bar nb' }, [el(doc, 'i', { style: 'width:' + (dr.nb / top * 100) + '%' })]), el(doc, 'b', { text: withUnit(dr.nb, dr.unit, dec) })]),
         ]),
         el(doc, 'details', { class: 'how' }, [el(doc, 'summary', { text: 'How is this scored?' }), el(doc, 'div', { class: 'formula', text: p.formula })]),
