@@ -22,7 +22,8 @@ export async function checkPassword(password, stored) {
   return same(await pbkdf2(password, unb64(salt), +iter), unb64(hash));
 }
 const sha256 = async (s) => b64(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))));
-const DUMMY = hashPassword('not-a-real-password');   // unknown emails still pay for one hash, so timing does not reveal which emails exist
+// Unknown emails still pay for one hash, so timing does not reveal which emails exist. Built on first use, not at import: a Worker may not generate random values in its global scope.
+let dummy = null; const DUMMY = () => dummy || (dummy = hashPassword('not-a-real-password'));
 
 export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
   const cors = (req) => {
@@ -74,7 +75,7 @@ export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
       const tries = await db.getFails(email);
       if (tries.n >= MAX_FAILS && now() - tries.t < WINDOW_MS) return fail(req, 429, 'Too many wrong attempts. Try again in a few minutes.', { 'retry-after': String(Math.ceil((WINDOW_MS - (now() - tries.t)) / 1000)) });
       const u = P.validEmail(email) ? await db.getUser(email) : null;
-      const good = typeof d.password === 'string' && await checkPassword(d.password, u ? u.pass : await DUMMY);
+      const good = typeof d.password === 'string' && await checkPassword(d.password, u ? u.pass : await DUMMY());
       if (!u || !good) { await db.setFails(email, { n: (now() - tries.t < WINDOW_MS ? tries.n : 0) + 1, t: now() }); return fail(req, 401, 'Email or password is wrong.'); }
       await db.setFails(email, { n: 0, t: 0 });
       return reply(req, 200, { ok: true, token: await open(req, email), user: view(u), isNew: !u.setUp });
