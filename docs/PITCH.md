@@ -10,7 +10,9 @@ Township of Tomorrow · Elmina
 
 A buyer signs for a home without knowing what it will cost to live in. **The electricity bill, the daily trips, and how the house copes with a hot week are all discovered after handover.**
 
-Today the price and the layout are the only things a buyer can see.
+A typical showroom visit: the buyer sees 3D models of the township, the LRT line, the houses and the apartments. **They cannot see how a home copes in a hot week, what it costs to run, or whether it floods.**
+
+We show the first two, as illustrations. **Flooding is not in our model yet.**
 
 **We have not yet spoken to a buyer. That conversation is our first next step.** [Buyer quote to add]
 
