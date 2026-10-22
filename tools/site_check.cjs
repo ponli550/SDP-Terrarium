@@ -346,4 +346,5 @@ ok($('viewLab').getAttribute('aria-pressed') === 'true' && $('viewExploded').get
 ok($('viewStudio').getAttribute('aria-pressed') === 'false' && $('viewStudio').textContent === 'Studio' && inside('viewStudio', '#viewMap'), 'the Map also offers Studio');
 $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') === 'false', 'without WebGL the switch does nothing and does not throw');
 T0.go('map');
+$('signOut').click(); ok($('gatePwRow').hidden && $('gateModeRow').hidden && $('gateGo').textContent === 'Log in', 'with no API address the gate is the demo gate: no password field, no account switch'); $('gateGuest').click();
 console.log('site checks passed:', n);

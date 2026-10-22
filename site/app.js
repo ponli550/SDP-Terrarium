@@ -32,6 +32,11 @@
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
+  var API = window.TERRARIUM_API || '', registering = false, busy = false;
+  if (API && window.TerrariumRemote) {   // real accounts; with no API address the demo store above stays
+    var keep; try { window.localStorage.setItem('terrarium.probe', '1'); window.localStorage.removeItem('terrarium.probe'); keep = window.localStorage; } catch (e) { keep = P.memoryStorage(); }
+    store = window.TerrariumRemote.createRemoteStore({ base: API, fetch: function () { return window.fetch.apply(window, arguments); }, profile: P, storage: keep, local: P.createStore(null), onStatus: showSave, onExpired: function () { $('signOut').click(); $('gateErr').textContent = 'Your login ended. Log in again.'; } });
+  }
   var SHOT = /[?&]shot\b/.test(location.search);
   var DEFAULT_STATE = function () { return Object.assign({}, T.DEFAULTS, { walkShare: 0.2 }); };
   var WIZ = [['house', 'Home'], ['level', 'Your floor (level 1 is the ground floor)', 1, 8, 1, ''], ['acHours', 'Air-con hours at night', 0, 12, 1, ' h'], ['setpoint', 'Setpoint', 22, 28, 1, ' C'], ['solarKwp', 'Rooftop solar', 0, 8, 1, ' kWp'], ['trees', 'Trees on your plot', 0, 10, 1, ''], ['nativeShare', 'Native planting', 0, 100, 10, '%']];
@@ -113,7 +118,15 @@
     $('gate').hidden = true; showChip(); draft = null; render();
     if (s.isNew || (s.setUp === false)) openWizard();
   }
-  function showGate() { $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gateNote').textContent = store.isPersistent() ? 'Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.' : 'Your browser is blocking storage, so your home will not be kept after you close this page. This is a demo sign-in with no password.'; $('gate').hidden = false; $('gateEmail').focus(); }
+  function showSave(s) { var e = $('saveState'); e.textContent = s === 'failed' ? 'Not saved' : s === 'saving' ? 'Saving…' : ''; e.className = s === 'failed' ? 'bad' : ''; e.title = s === 'failed' ? 'The server could not be reached. Your changes are kept here and sent with the next change.' : ''; }
+  function gateMode(reg) {
+    registering = reg; $('gateGo').textContent = reg ? 'Create account' : 'Log in'; $('gatePw').autocomplete = reg ? 'new-password' : 'current-password';
+    $('gateMode').textContent = reg ? 'I already have an account' : 'New here? Create an account';
+    $('gateNote').textContent = reg ? 'Choose a password of 10 to 128 characters. It is stored as a salted hash, never as text. There is no reset yet, so keep it safe.' : 'Your home is saved to your account on the server. A guest is not saved.';
+  }
+  function showGate() { $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gatePw').value = '';
+    if (store.remote) { $('gatePwRow').hidden = false; $('gateModeRow').hidden = false; gateMode(false); $('gate').hidden = false; $('gateEmail').focus(); return; }
+    $('gatePwRow').hidden = true; $('gateModeRow').hidden = true; $('gateGo').textContent = 'Log in'; $('gateNote').textContent = store.isPersistent() ? 'Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.' : 'Your browser is blocking storage, so your home will not be kept after you close this page. This is a demo sign-in with no password.'; $('gate').hidden = false; $('gateEmail').focus(); }
   $('wizFields').innerHTML = wizardHtml();
   WIZ.forEach(function (f) {
     $('w_' + f[0]).addEventListener(f[0] === 'house' ? 'change' : 'input', function (e) {
@@ -122,10 +135,21 @@
     });
   });
   $('gateForm').addEventListener('submit', function (e) {
-    e.preventDefault(); var r = store.signIn($('gateEmail').value);
+    e.preventDefault();
+    if (store.remote) {
+      if (busy) return; busy = true; $('gateGo').disabled = true; $('gateErr').textContent = '';
+      (registering ? store.register : store.signIn).call(store, $('gateEmail').value, $('gatePw').value).then(function (r) {
+        busy = false; $('gateGo').disabled = false; $('gatePw').value = '';
+        if (!r.ok) { $('gateErr').textContent = r.reason; return; }
+        startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew, setUp: r.setUp });
+      });
+      return;
+    }
+    var r = store.signIn($('gateEmail').value);
     if (!r.ok) { $('gateErr').textContent = r.reason; return; }
     startSession({ email: r.email, guest: false, home: r.home, isNew: r.isNew });
   });
+  $('gateMode').addEventListener('click', function () { $('gateErr').textContent = ''; gateMode(!registering); });
   $('gateGuest').addEventListener('click', function () { var r = store.guest(); startSession(Object.assign({ guest: true }, r)); });
   $('wizDone').addEventListener('click', finishSetup);
   $('myMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
@@ -409,7 +433,7 @@
   }
   render();
   if (SHOT) { session = Object.assign({ guest: true, setUp: true }, store.guest()); $('gate').hidden = true; showChip(); }   // screenshot mode keeps the URL's presets
-  else { var cur = store.current(); if (cur) startSession(cur); else showGate(); }
+  else { var cur = store.current(); if (cur) { startSession(cur); if (store.remote && !cur.guest) store.refresh(); } else showGate(); }
   if (SHOT && q0.has('stress')) stressN = +q0.get('stress');   // rebuild the homes many times, a few frames apart so each build is really drawn
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
