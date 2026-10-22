@@ -112,3 +112,16 @@ test('a storage failure is a 500 with no detail, not a crash', async () => {
   const res = await createApi({ db }).fetch(new Request('https://api.test/register', { method: 'POST', body: JSON.stringify({ email: 'a@b.my', password: PW }) }));
   assert.equal(res.status, 500); assert.ok(!(await res.text()).includes('secret'));
 });
+
+test('every response, success or error, carries the security headers', async () => {
+  const r = rig(), s = await signUp(r), bad = JSON.stringify({ email: 'nope' });
+  const want = { 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' };
+  const seen = [await r.call('OPTIONS', '/login'), await r.call('GET', '/me', { token: s.token }), await r.call('GET', '/me'), await r.call('GET', '/nowhere', { token: s.token }), await r.call('POST', '/register', { raw: bad }), await r.call('POST', '/login', { body: { email: 'a@b.my', password: 'wrong wrong wrong' } })];
+  const boom = memoryDb(); boom.getUser = async () => { throw new Error('x'); };
+  const res = await createApi({ db: boom }).fetch(new Request('https://api.test/register', { method: 'POST', body: '{}' })); seen.push({ headers: res.headers });
+  for (const x of seen) {
+    for (const k in want) assert.equal(x.headers.get(k), want[k], k);
+    assert.match(x.headers.get('content-security-policy'), /default-src 'none'/); assert.match(x.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+    assert.match(x.headers.get('strict-transport-security'), /max-age=31536000/); assert.match(x.headers.get('permissions-policy'), /camera=\(\)/);
+  }
+});

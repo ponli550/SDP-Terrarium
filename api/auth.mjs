@@ -30,7 +30,9 @@ export function createApi({ db, now = () => Date.now(), allowedOrigins = [] }) {
     if (o && allowedOrigins.includes(o)) { h['access-control-allow-origin'] = o; h['access-control-allow-headers'] = 'authorization, content-type'; h['access-control-allow-methods'] = 'GET, POST, PUT, OPTIONS'; h['access-control-max-age'] = '600'; }
     return h;
   };
-  const reply = (req, status, body, extra) => new Response(body === null ? null : JSON.stringify(body), { status, headers: Object.assign({ 'content-type': 'application/json', 'cache-control': 'no-store' }, cors(req), extra) });
+  // The API only ever returns JSON, so the browser is told to treat it as nothing else: no scripts, no framing, no sniffing, no referrer, HTTPS only.
+  const HARDEN = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; frame-ancestors 'none'", 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'strict-transport-security': 'max-age=31536000; includeSubDomains' };
+  const reply = (req, status, body, extra) => new Response(body === null ? null : JSON.stringify(body), { status, headers: Object.assign({ 'content-type': 'application/json' }, HARDEN, cors(req), extra) });
   const fail = (req, status, reason, extra) => reply(req, status, { ok: false, reason }, extra);
 
   async function body(req) {
