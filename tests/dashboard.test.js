@@ -140,6 +140,40 @@ test('the summary sentence states the home\'s own total, and says all four tie o
   assert.ok(/Strongest/.test(d.sentence) && !/All four pillars/.test(d.sentence), 'no tie, so strongest and weakest are named');
 });
 
+const MATCHED = (kwh) => { const cal = T.calibrate(HOME, kwh); return Object.assign({}, HOME, { baseScale: cal.baseScale, billKwh: kwh }); };
+
+test('a headline figure is trusted only when the model grades it REAL or SOURCED; today that is none, until a bill is matched', () => {
+  const d = dash();
+  d.headline.forEach((h) => assert.strictEqual(h.trusted, h.grade !== 'ILLUSTRATIVE', h.key)); assert.ok(d.headline.every((h) => !h.trusted), 'nothing is trusted on a plain home');
+  d.pillars.forEach((p) => assert.strictEqual(p.driver.trusted, p.driver.grade !== 'ILLUSTRATIVE', p.key)); assert.ok(d.pillars.every((p) => !p.driver.trusted));
+  const m = D.dashboard(T, MATCHED(200));
+  assert.deepStrictEqual(m.headline.map((h) => h.trusted), [true, false, false], 'only the electricity figure is the owner\'s own'); assert.strictEqual(m.headline[0].grade, 'REAL');
+});
+
+test('matching a real bill is recognised: the dashboard says so, quotes the bill, and the summary is the owner\'s own figure', () => {
+  const d = D.dashboard(T, MATCHED(200));
+  assert.strictEqual(d.matched, true); assert.strictEqual(d.billKwh, 200); close(d.headline[0].you, 200, 'the month is the bill');
+  assert.ok(/^Your own bill is 200 kWh, /.test(d.sentence), d.sentence); assert.ok(!/a month/.test(d.sentence.split('.')[0]));
+  assert.ok(/Only the electricity figure is your own bill/.test(d.caveats[0]) && d.caveats.length === 4, 'and it says everything else is still a model');
+  const plain = dash(); assert.strictEqual(plain.matched, false); assert.strictEqual(plain.billKwh, null); assert.ok(/^This home uses /.test(plain.sentence)); assert.strictEqual(plain.caveats.length, 3);
+});
+
+test('the dashboard says "matched" exactly when the model still grades the month REAL: a change that moves the kWh breaks it, one that does not leaves it', () => {
+  const m = MATCHED(200); assert.strictEqual(D.dashboard(T, m).matched, true);
+  let broke = 0, kept = 0;
+  [{ acHours: 9 }, { acHours: 6 }, { setpoint: 26 }, { trees: 4 }, { solarKwp: 3 }, { level: 13 }, { level: 35 }, { level: 1 }, { baseScale: 1.2 }].forEach((c) => {
+    const next = Object.assign({}, m, c), still = T.simulate(next).figures.monthKwh.grade === 'REAL', d = D.dashboard(T, next);
+    assert.strictEqual(d.matched, still, JSON.stringify(c)); assert.strictEqual(d.headline[0].trusted, still, JSON.stringify(c)); still ? kept++ : broke++;
+  });
+  assert.ok(broke >= 3 && kept >= 2, 'the sample has changes that break the match (' + broke + ') and changes that do not (' + kept + ')');
+  const stale = Object.assign({}, HOME, { billKwh: 200 }); assert.strictEqual(D.dashboard(T, stale).matched, false, 'a bill that the month does not equal is not a match');
+});
+
+test('the summary calls the neighbour illustrative', () => {
+  assert.ok(/the illustrative neighbour average of \d+ kWh/.test(dash().sentence), dash().sentence);
+  assert.ok(/the illustrative neighbour average of \d+ kWh/.test(D.dashboard(T, MATCHED(200)).sentence));
+});
+
 test('the summary sentence uses only numbers that are in the data', () => {
   [HOME, Object.assign({}, HOME, { solarKwp: 0, acHours: 12 }), Object.assign({}, HOME, { house: 'terrace' }), Object.assign({}, HOME, { trees: 0, walkShare: 0, solarKwp: 0 })].forEach((inp) => {
     const d = D.dashboard(T, inp), nums = (d.sentence.match(/\d+(?:\.\d+)?/g) || []).map(Number);

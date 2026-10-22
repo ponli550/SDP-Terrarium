@@ -29,7 +29,8 @@
 
     var headline = HEADLINE.map(function (h) {
       var you = y[h.key].value, nb = n[h.key].value, d = pct(you, nb);
-      return { key: h.key, label: h.label, unit: h.unit, dec: h.dec, you: you, nb: nb, deltaPct: d, better: you < nb, same: Math.abs(d) < 0.5, grade: y[h.key].grade };
+      // trusted: a REAL or SOURCED figure may be coloured as better or worse; an ILLUSTRATIVE one is a placeholder and is drawn neutral
+      return { key: h.key, label: h.label, unit: h.unit, dec: h.dec, you: you, nb: nb, deltaPct: d, better: you < nb, same: Math.abs(d) < 0.5, grade: y[h.key].grade, trusted: y[h.key].grade !== 'ILLUSTRATIVE' };
     });
 
     var pillars = S.pillars.map(function (p) {
@@ -37,7 +38,7 @@
       // the neighbour scores 50 on the three ratio pillars by construction; on resilience it scores its own share of comfortable nights
       var nbScore = p.key === 'resilience' ? clamp(n.comfortPct.value, 0, 100) : 50;
       return { key: p.key, name: p.name, score: p.score, nbScore: nbScore, vsNeighbour: p.score - nbScore, capped: p.score >= 100, formula: p.formula,
-        driver: { label: dr.label, unit: y[dr.fig].unit, you: you, nb: nb, dir: dr.dir, better: dr.dir === 'lower' ? you < nb : you > nb, grade: y[dr.fig].grade } };
+        driver: { label: dr.label, unit: y[dr.fig].unit, you: you, nb: nb, dir: dr.dir, better: dr.dir === 'lower' ? you < nb : you > nb, grade: y[dr.fig].grade, trusted: y[dr.fig].grade !== 'ILLUSTRATIVE' } };
     });
 
     var days = S.you.days.map(function (d, i) {
@@ -72,13 +73,15 @@
     var strongest = pillars.filter(function (p) { return p.score === top; }).map(function (p) { return p.name; });
     var weakest = pillars.filter(function (p) { return p.score === low; }).map(function (p) { return p.name; });
     var kwh = headline[0], rounded = Math.round(Math.abs(kwh.deltaPct));
-    var sentence = 'This home uses ' + fmt(kwh.you, 0) + ' kWh a month, ' + (kwh.same || rounded === 0 ? 'about the same as' : rounded + '% ' + (kwh.better ? 'less' : 'more') + ' than') + ' the neighbour average of ' + fmt(kwh.nb, 0) + ' kWh. '
+    // the model grades the month's electricity REAL only while it still equals the bill the owner entered; any change to the home breaks the match
+    var matched = input.billKwh != null && y.monthKwh.grade === 'REAL';
+    var sentence = (matched ? 'Your own bill is ' : 'This home uses ') + fmt(kwh.you, 0) + ' kWh' + (matched ? '' : ' a month') + ', ' + (kwh.same || rounded === 0 ? 'about the same as' : rounded + '% ' + (kwh.better ? 'less' : 'more') + ' than') + ' the illustrative neighbour average of ' + fmt(kwh.nb, 0) + ' kWh. '
       + 'It scores ' + fmt(total, 0) + ' out of 100. ' + (top === low ? 'All four pillars score ' + fmt(top, 0) + '.' : 'Strongest: ' + nameList(strongest) + ' (' + fmt(top, 0) + '). Weakest: ' + nameList(weakest) + ' (' + fmt(low, 0) + ').');
 
     return {
       label: T.homeLabel(input), total: total, headline: headline, pillars: pillars, days: days, levers: levers, floors: floors, gradeCounts: counts, figureCount: Object.keys(y).length,
-      sentence: sentence,
-      caveats: ['The score formulas, the tariff, the carbon factor and the floor effects are placeholders (graded ILLUSTRATIVE), not measurements.', 'The neighbour is one fixed illustrative household, not real data.', 'Weather is a mock profile.'],
+      sentence: sentence, matched: matched, billKwh: matched ? input.billKwh : null,
+      caveats: (matched ? ['Only the electricity figure is your own bill. The bill in RM, the carbon, the comfort and every score are still the model\'s placeholders.'] : []).concat(['The score formulas, the tariff, the carbon factor and the floor effects are placeholders (graded ILLUSTRATIVE), not measurements.', 'The neighbour is one fixed illustrative household, not real data.', 'Weather is a mock profile.']),
     };
   }
 

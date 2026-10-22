@@ -75,11 +75,12 @@ input[type=range]{width:100%;accent-color:var(--g1)}select{width:100%;padding:8p
 .dh-text{flex:1;min-width:220px}.dh-text h2{margin:0 0 6px}.dh-sentence{margin:0;font-size:17px;line-height:1.45}
 .dh-tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .delta{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:3px}.delta b{font-size:24px}.delta.good{border-color:#b9d9a6;background:#f3faee}.delta.bad{border-color:#f0cf9f;background:#fff8ec}
-.dpill{font-size:12px;font-weight:600}.delta.good .dpill{color:var(--real)}.delta.bad .dpill{color:var(--warn)}
+.delta.illus{border-style:dashed;background:var(--card)}.dpill{font-size:12px;font-weight:600}.delta.illus .dpill{color:var(--mute)}
+.matched{margin:0;padding:10px 12px;border-radius:10px;border:1px solid #b9d9a6;background:#f3faee;font-size:13px;color:var(--real)}.delta.good .dpill{color:var(--real)}.delta.bad .dpill{color:var(--warn)}
 .pchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pchip{font-size:12px;border-radius:999px;padding:2px 8px;border:1px solid var(--line);color:var(--mute)}
 .pchip.good{color:var(--real);border-color:#b9d9a6;background:#f3faee}.pchip.bad{color:var(--warn);border-color:#f0cf9f;background:#fff8ec}.pchip.cap{border-style:dashed}
 .drv{display:grid;gap:4px;margin-top:6px}.drv-l{font-size:12px;color:var(--mute)}.drv-row{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px}
-.drv-bar{height:8px;border-radius:8px;background:var(--g3);overflow:hidden;display:block}.drv-bar i{display:block;height:100%}.drv-bar.you.good i{background:var(--g1)}.drv-bar.you.bad i{background:var(--warn)}.drv-bar.nb i{background:#9aa89d}
+.drv-bar{height:8px;border-radius:8px;background:var(--g3);overflow:hidden;display:block}.drv-bar i{display:block;height:100%}.drv-bar.you.good i{background:var(--g1)}.drv-bar.you.bad i{background:var(--warn)}.drv-bar.you.illus i{background:#6f8f5b}.drv-bar.nb i{background:#9aa89d}
 .how summary{cursor:pointer;font-size:12px;color:var(--mute);margin-top:8px;min-height:24px}
 #chart{width:100%;height:auto;display:block}#chart:focus-visible{outline:2px solid var(--g1);outline-offset:2px;border-radius:6px}
 #chart .grid,.floorchart .grid{stroke:currentColor;opacity:.12}#chart .ax,.floorchart .ax{font-size:11px;fill:currentColor;opacity:.65}
