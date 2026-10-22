@@ -147,14 +147,14 @@ test('a headline figure is trusted only when the model grades it REAL or SOURCED
   d.headline.forEach((h) => assert.strictEqual(h.trusted, h.grade !== 'ILLUSTRATIVE', h.key)); assert.ok(d.headline.every((h) => !h.trusted), 'nothing is trusted on a plain home');
   d.pillars.forEach((p) => assert.strictEqual(p.driver.trusted, p.driver.grade !== 'ILLUSTRATIVE', p.key)); assert.ok(d.pillars.every((p) => !p.driver.trusted));
   const m = D.dashboard(T, MATCHED(200));
-  assert.deepStrictEqual(m.headline.map((h) => h.trusted), [true, false, false], 'only the electricity figure is the owner\'s own'); assert.strictEqual(m.headline[0].grade, 'REAL');
+  assert.deepStrictEqual(m.headline.map((h) => h.trusted), [true, true, false], 'the electricity figure is the owner\'s own and the RM bill follows it through the published tariff; the carbon is still the model\'s'); assert.strictEqual(m.headline[0].grade, 'REAL');
 });
 
 test('matching a real bill is recognised: the dashboard says so, quotes the bill, and the summary is the owner\'s own figure', () => {
   const d = D.dashboard(T, MATCHED(200));
   assert.strictEqual(d.matched, true); assert.strictEqual(d.billKwh, 200); close(d.headline[0].you, 200, 'the month is the bill');
   assert.ok(/^Your own bill is 200 kWh, /.test(d.sentence), d.sentence); assert.ok(!/a month/.test(d.sentence.split('.')[0]));
-  assert.ok(/Only the electricity figure is your own bill/.test(d.caveats[0]) && d.caveats.length === 4, 'and it says everything else is still a model');
+  assert.ok(/The electricity figure is your own bill/.test(d.caveats[0]) && /published tariff/.test(d.caveats[0]) && /still the model/.test(d.caveats[0]) && d.caveats.length === 4, 'and it says what follows from it and what is still a model');
   const plain = dash(); assert.strictEqual(plain.matched, false); assert.strictEqual(plain.billKwh, null); assert.ok(/^This home uses /.test(plain.sentence)); assert.strictEqual(plain.caveats.length, 3);
 });
 

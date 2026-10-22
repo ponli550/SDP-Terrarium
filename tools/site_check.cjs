@@ -370,10 +370,11 @@ $('signOut').click(); ok($('gatePwRow').hidden && $('gateModeRow').hidden && $('
   // a real bill: the one figure that becomes the owner's own is coloured, named real, and the page says what is still a model
   ok(qa('#dashHead .matched').length === 0, 'no banner before a bill is matched');
   { $('billKwh').value = '260'; fire($('billForm'), 'submit', { cancelable: true });
-    const tile = q1('#dashHead .delta[data-key="monthKwh"]'), others = qa('#dashHead .delta').filter((d) => d.dataset.key !== 'monthKwh');
+    const tile = q1('#dashHead .delta[data-key="monthKwh"]'), rmTile = q1('#dashHead .delta[data-key="monthBill"]'), others = qa('#dashHead .delta').filter((d) => d.dataset.key === 'carbonKg');
     ok(tile.classList.contains('good') && tile.querySelector('.badge.REAL') && /\d+% below the illustrative neighbour/.test(tile.querySelector('.dpill').textContent) && /260 kWh/.test(tile.querySelector('b').textContent), 'a matched bill makes the electricity figure real, coloured, and exactly the bill, still compared with an illustrative neighbour');
-    ok(others.length === 2 && others.every((d) => d.classList.contains('illus') && d.querySelector('.badge.ILLUSTRATIVE')), 'and the bill in RM and the carbon stay neutral and illustrative');
-    ok(/Matched to your real bill: 260 kWh/.test(q1('#dashHead .matched').textContent) && /^Your own bill is 260 kWh/.test(q1('#dashHead .dh-sentence').textContent) && /Only the electricity figure is your own bill/.test($('caveats').textContent) && qa('#caveats li').length === 4, 'the banner, the summary and the limits all say it');
+    ok(rmTile.classList.contains('good') && rmTile.querySelector('.badge.SOURCED') && /^RM \d+/.test(rmTile.querySelector('b').textContent), 'the bill in RM follows the real kWh through the published tariff, so it is SOURCED and coloured');
+    ok(others.length === 1 && others.every((d) => d.classList.contains('illus') && d.querySelector('.badge.ILLUSTRATIVE')), 'and the carbon, which includes car trips, stays neutral and illustrative');
+    ok(/Matched to your real bill: 260 kWh/.test(q1('#dashHead .matched').textContent) && /^Your own bill is 260 kWh/.test(q1('#dashHead .dh-sentence').textContent) && /The electricity figure is your own bill/.test($('caveats').textContent) && qa('#caveats li').length === 4, 'the banner, the summary and the limits all say it');
     setRange('acHours', 9); ok(qa('#dashHead .matched').length === 0 && q1('#dashHead .delta[data-key="monthKwh"]').classList.contains('illus') && /^This home uses /.test(q1('#dashHead .dh-sentence').textContent), 'changing the home breaks the match and the page goes back to a model');
     setRange('acHours', 8); $('billReset').click(); ok(qa('#dashHead .matched').length === 0 && qa('#caveats li').length === 3, 'Reset clears it'); }
   // the pillars

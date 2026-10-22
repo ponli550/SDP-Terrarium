@@ -63,13 +63,13 @@ SDP's 40% target covers its own operations (Scope 1 and 2). It says it is baseli
 
 Nudges work, modestly. Home energy reports cut electricity use by **about 2% on average** (Allcott 2011, roughly 600,000 US households; utilities ranged from 1.4% to 3.3%).
 
-Per household that is small. The case is better buying decisions, and scale across a township. **We have not measured any effect of our tool, and every figure on screen is a placeholder until a real home replaces it.**
+Per household that is small. The case is better buying decisions, and scale across a township. **We have not measured any effect of our tool, and the values on screen are placeholders until a real home replaces them.** Two constants behind them now have published sources (the grid carbon factor and the July 2025 tariff).
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (259 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 336 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+A working prototype in the browser: a tested model (267 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 345 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
-**Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
+**Limits:** the air-con and shade maths and the scoring formulas are our placeholders. Public data gives the stop and rail distances and the corridor's trees (real); the grid carbon factor and the July 2025 tariff are sourced. Every simulated value stays a placeholder until an owner enters a bill.
 
 A pilot is proposed on a later slide. Nothing is agreed with SDP yet.
 
@@ -89,9 +89,9 @@ Once an owner lives in the home, they enter the kWh on their bill. The model sho
 
 **Checked:** the 0.93 km distance, what SDP's app covers, the roughly 2% nudge ceiling, and the model's behaviour in tests.
 
-**Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, and whether managers would use it.
+**Not checked:** that buyers want this, that it changes any behaviour, the tariff in the regulator's own schedule (we read a news report of it), and whether managers would use it.
 
-**Next:** talk to recent buyers and a township manager, then replace the placeholders with the real tariff and one metered home.
+**Next:** talk to recent buyers and a township manager, then replace the placeholders with one metered home.
 
 ## Sources
 

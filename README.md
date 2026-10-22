@@ -19,8 +19,8 @@ A preview of what is merged but not yet released: https://ponli550.github.io/SDP
 | Grade | Meaning | What is in it today |
 |---|---|---|
 | REAL | Public data, cited | The 0.93 km distance to the nearest public transit stop and the 5.4 km distance to rail (data.gov.my GTFS feeds; approximate centre, straight line), and the 1,450 trees planted along a 500 m stretch of the Elmina corridor (SDP's 2024 sustainability highlights slide). After handover, the electricity figure becomes REAL once an owner types the kWh from their bill. |
-| SOURCED | An assumption with a published source | The nudge ceiling of about 2% (Allcott 2011, roughly 600,000 US households) |
-| ILLUSTRATIVE | Our placeholder, to be replaced | Tariff, carbon factor, air-con and shade maths, scoring formulas, condo-floor effects, the drawn 12-lot layout, everything that moves |
+| SOURCED | An assumption with a published source | The grid emission factor, 0.740 kg CO2e per kWh (Peninsular Malaysia 2024, provisional; read in the Energy Commission's own release of 23 Feb 2026). The domestic tariff from July 2025 (energy 27.03, capacity 4.55 and network 12.85 sen per kWh, plus RM 10 a month above 600 kWh; read in a news explainer, with the structure and dates confirmed by the Energy Commission's announcement as reported by Bernama; no fuel adjustment or service tax). The nudge ceiling of about 2% (Allcott 2011). After handover, the bill in RM becomes SOURCED once the kWh is an owner's own bill. Each has its source, what we read, and what we did not, in `docs/SOURCES.md`. |
+| ILLUSTRATIVE | Our placeholder, to be replaced | Air-con and shade maths, scoring formulas, condo-floor effects, the drawn 12-lot layout, everything that moves |
 
 Only REAL and SOURCED figures are headlined in the pitch. We have not measured any effect of the tool.
 
@@ -86,7 +86,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Checked:** the 0.93 km distance, what SDP's own app covers (billing, documents, defects, a virtual tour; nothing on running cost, in an undated source), the roughly 2% nudge ceiling, and the model's behaviour in tests.
 
-**Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
+**Not checked:** that buyers want this, that it changes any behaviour, the tariff in the Energy Commission's or TNB's own schedule (we read a news report of it), whether a final grid factor will replace the provisional 2024 one, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
 **Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (118 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
 
