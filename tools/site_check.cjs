@@ -133,7 +133,8 @@ submitGate('ali@example.com');
 ok($('gate').hidden && $('wizard').hidden && val('house') === 'condo' && val('trees') === '9' && val('solarKwp') === '4', 'signing back in restores the saved home and skips the set-up');
 // the account menu and the Log in / Log out button
 ok($('userName').textContent === 'ali@example.com' && $('signOut').textContent === 'Log out' && /ali@example\.com/.test($('signOut').title) && !$('signOut').closest('details'), 'a signed-in user sees their email and a Log out button that is always on show, not hidden in the menu');
-ok([...$('acct').querySelectorAll('.acctmenu button')].map((b) => b.id).join() === 'editHome,moveHouse,myMonth,compareBtn' && $('acct').open === false, 'the menu holds Edit home, Move house, My month and Compare, and starts closed');
+ok([...$('acct').querySelectorAll('.acctmenu button:not([hidden])')].map((b) => b.id).join() === 'editHome,moveHouse,myMonth,compareBtn' && $('acct').open === false, 'the demo menu shows Edit home, Move house, My month and Compare, and starts closed');
+ok($('recoveryBtn').hidden && $('gateForgotRow').hidden && $('gateCodeRow').hidden && $('recovery').hidden, 'the demo has no recovery code, no forgot-password link and no recovery dialog');
 $('acct').open = true; $('editHome').click(); ok($('acct').open === false && !$('wizard').hidden, 'choosing something in the menu closes it');
 w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok($('wizard').hidden, 'Escape closes the dialog');
 $('acct').open = true; w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' })); ok($('acct').open === false && $('wizard').hidden, 'Escape closes an open menu first');
