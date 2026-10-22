@@ -461,6 +461,8 @@
   if (SHOT && q0.has('stress')) stressN = +q0.get('stress');   // rebuild the homes many times, a few frames apart so each build is really drawn
   if (SHOT && q0.has('level2')) { st.level = +q0.get('level2'); render(); }   // change the level after the first build
   if (SHOT && q0.has('gate')) { session = null; showChip(); showGate(); }
+  if (SHOT && q0.has('forgot') && store.remote) { session = null; showChip(); showGate(); gateMode('recover'); }
+  if (SHOT && q0.has('recovery') && store.remote) { session = null; showChip(); $('gate').hidden = true; showRecovery('K7QX2-9HMWD-TR4ZB-8NPCF'); }
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
@@ -505,7 +507,11 @@
     var tap = 999; [].forEach.call(document.querySelectorAll('.hud button, header button, header summary'), function (b) { var r = R(b); if (r) tap = Math.min(tap, Math.round(r.height)); });
     return { overlaps: over, minTap: tap === 999 ? null : tap };
   }
-  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
+  function fieldInfo() {   // how wide each gate field is and how many lines the recovery code takes, as drawn
+    var w = function (id) { var e = $(id); return e.offsetParent === null ? 0 : Math.round(e.getBoundingClientRect().width); }, r = $('recCode'), cs = getComputedStyle(r), fs = parseFloat(cs.fontSize), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    return { email: w('gateEmail'), code: w('gateCode'), pw: w('gatePw'), recPw: w('recPw'), recW: w('recCode'), recLines: r.offsetParent === null ? 0 : Math.round((r.getBoundingClientRect().height - pad) / (fs * 1.3)), recFits: r.offsetParent === null ? true : r.scrollWidth <= r.clientWidth + 1 };
+  }
+  function snapshotUi() { var vis = function (id) { return getComputedStyle($(id)).display; }; document.body.dataset.ui = JSON.stringify({ gate: vis('gate'), wizard: vis('wizard'), chip: vis('userChip'), firstLook: vis('firstLook'), compare: vis('compare'), fits: document.documentElement.scrollHeight <= window.innerHeight + 1, viewMap: vis('viewMap'), viewAnalysis: vis('viewAnalysis'), connect: vis('connect'), anaOverflow: columnOverflow(), fields: fieldInfo(), overflow: overflowInfo(), layout: layoutInfo(), play: $('play').textContent, cutBtn: $('cutBtn').hidden ? 'hidden' : $('cutBtn').getAttribute('aria-pressed'), scrub: { value: +scrubEl.value, max: +scrubEl.max, out: $('scrubOut').textContent }, hudClock: $('hudClock').textContent, viewBtn: $('viewExploded').getAttribute('aria-pressed') + '/' + $('viewLab').getAttribute('aria-pressed') + '/' + $('viewStudio').getAttribute('aria-pressed'), chat: vis('ask'), dockBody: vis('dockBody'), fade: fadeInfo(), inspect: vis('inspect'), skip: vis('skip') }); }
   if (q0.has('shot') && q0.has('ask')) askNow(q0.get('ask'));
   if (q0.has('shot') && q0.has('inspect') && !scene) onInspect(q0.get('inspect'));
   if (q0.has('shot') && q0.has('autoweek') && scene) { startWeekAnimation(0); g = T.play(g, { acHours: st.acHours, setpoint: st.setpoint, walkShare: st.walkShare }); render(); }
