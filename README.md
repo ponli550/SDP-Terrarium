@@ -86,7 +86,7 @@ Tests are run with mutation checks as a habit: break the code on purpose and con
 
 **Not checked:** that buyers want this, that it changes any behaviour, the tariff and carbon figures, whether managers would use it, and how SDP's Scope 1 and 2 target maps to a resident's side (we make one home's side visible; we have not confirmed that mapping).
 
-**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (102 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
+**Test-mode note:** headless Chrome intermittently stops delivering animation frames to a mostly static page and can hang after dumping the page. In screenshot mode only, the scene is driven from a timer, and `tools/chrome_dump.cjs` ends Chrome as soon as the page is complete. The real-browser suite (108 checks, about ten minutes) passes on the machine it was developed on; it has not been run elsewhere.
 
 ## Accounts
 

@@ -65,7 +65,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (237 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 302 page checks and 102 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+A working prototype in the browser: a tested model (237 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 302 page checks and 108 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
 **Limits:** the tariff, the carbon factor, the air-con and shade maths and the scoring formulas are our placeholders. The figures from public data (the 0.93 km stop distance, the 5.4 km rail distance, the corridor's trees) are real; everything else is a placeholder until an owner enters a bill.
 
