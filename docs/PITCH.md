@@ -8,10 +8,7 @@ See a month in your home before you sign for it. Township of Tomorrow · Elmina.
 
 - **Team Name:** SelfDev
 - **Team Leader:** Irfan Ali
-- **University:** [University to add]
 - **Team Members:** Irfan Ali (software engineer), Imarsya (cyber security), Aimi (data science), Adief (cyber security), Bashirah (forensics)
-- **Email:** [Email to add]
-- **Contact Number:** [Contact number to add]
 
 ## 1. The Problem
 
