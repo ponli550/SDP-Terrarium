@@ -60,7 +60,7 @@ npm test                        # model, assistant, profile and MCP tests, plus 
 npm run test:browser            # real-Chrome checks, about 10 minutes (needs Google Chrome; set CHROME to its path)
 
 # local CI: there is deliberately no CI on GitHub; the checks run here, before anything is pushed
-npm run ci                      # a few seconds: syntax, tests, no secrets or personal data tracked, no watermark trailers, deck page count
+npm run ci                      # a few seconds: syntax, tests, no secrets or personal data tracked, no watermark trailers, deck page count, deck order and counts
 npm run ci:full                 # the same plus the real-Chrome suite
 npm run hooks                   # turn on the git hooks: pre-push runs `npm run ci`, commit-msg rejects Co-Authored-By trailers
 ```
@@ -79,7 +79,8 @@ Vanilla JavaScript (UMD modules, no framework), three.js r128 vendored in `site/
 | `site/app.js`, `site/index.html` | The two pages (Map and Analysis) and their wiring |
 | `site/profile.js`, `site/mcpconfig.js` | Sign-in storage, the home file format, and MCP client config generation |
 | `mcp/` | The MCP server and its config printer |
-| `docs/` | [Criteria map](docs/CRITERIA.md), [pitch](docs/PITCH.md), [pilot proposal](docs/PILOT.md), [MCP guide](docs/MCP.md), slides |
+| `docs/` | [Criteria map](docs/CRITERIA.md), [pitch](docs/PITCH.md) (the deck's one source), [sources](docs/SOURCES.md), [pilot proposal](docs/PILOT.md), [MCP guide](docs/MCP.md), the slides as a PDF |
+| `tools/build_pptx.py` | Fills the organisers' PowerPoint template with `docs/PITCH.md` (`pip install python-pptx`) |
 | `tests/`, `tools/` | Unit and MCP tests; page and real-browser checks |
 
 Tests are run with mutation checks as a habit: break the code on purpose and confirm a test fails. Several tests were tightened because a deliberate break survived.
@@ -111,3 +112,14 @@ data.gov.my GTFS static feeds (Prasarana, KTMB) and the Elmina centre from OpenS
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+## The deck
+
+The deck follows the organisers' Township of Tomorrow template: the cover, Team Information, the eight areas in their order (1. The Problem to 8. Implementation), Visual Concept, and Why Your Team Should Win (100 words or less), then Thank You. That is ten core slides, with the appendix after Thank You. `docs/PITCH.md` is the one source. The PDF is made from it with `hackager pdf --slides -o docs/SDP-Terrarium-slides.pdf docs/PITCH.md`, and the PowerPoint, in the organisers' own design, with:
+
+```
+python3 -m venv .venv && .venv/bin/pip install python-pptx
+.venv/bin/python tools/build_pptx.py --template <the organisers' template .pptx>
+```
+
+The template and the deck built from it are the organisers' artwork, so they are not committed (see `.gitignore`). `npm run ci` fails if the deck leaves the template's order, if Why Your Team Should Win goes over 100 words, or if the test counts on the Feasibility slide stop matching the suite. Four things are left for the team to fill in: the university, an email, a contact number, and a buyer quote.
