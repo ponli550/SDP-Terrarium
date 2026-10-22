@@ -28,6 +28,8 @@ Elmina's nearest public transit stop is **0.93 km** from the township centre, an
 
 **That is a distance, not a complaint.** Whether residents find it a problem is exactly what we have not yet asked.
 
+Two more figures now have a published source: the grid carbon factor, **0.740 kg CO2e per kWh** (Energy Commission, 2024, provisional), and the July 2025 tariff, **44.43 sen per kWh** plus RM 10 a month above 600 kWh (from a news report of the regulator's schedule). The app's About page lists every number with its source and what we did not check.
+
 ## What we built
 
 ![Elmina in 3D: a condo among its neighbours, the bus stop 0.93 km away, and the biodiversity corridor](docs/media/lab.png)
@@ -67,7 +69,7 @@ Per household that is small. The case is better buying decisions, and scale acro
 
 ## Feasibility
 
-A working prototype in the browser: a tested model (267 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 345 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
+A working prototype in the browser: a tested model (278 automated tests), the 3D township with an exploded view, the weekly game with a timeline you can drag, 360 page checks and 118 checks in a real browser, including phone-width layout checks and a 35-level tower. It also runs as a local MCP server, so your own AI assistant can ask about your home, and every answer is checked first. Public data only; no SDP data.
 
 **Limits:** the air-con and shade maths and the scoring formulas are our placeholders. Public data gives the stop and rail distances and the corridor's trees (real); the grid carbon factor and the July 2025 tariff are sourced. Every simulated value stays a placeholder until an owner enters a bill.
 

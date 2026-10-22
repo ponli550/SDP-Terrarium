@@ -10,6 +10,7 @@ const html = read('index.html')
   .replace('<script src="logic.js"></script>', '<script>' + read('logic.js') + '</script>')
   .replace('<script src="dashboard.js"></script>', '<script>' + read('dashboard.js') + '</script>')
   .replace('<script src="dashview.js"></script>', '<script>' + read('dashview.js') + '</script>')
+  .replace('<script src="aboutview.js"></script>', '<script>' + read('aboutview.js') + '</script>')
   .replace('<script src="profile.js"></script>', '<script>' + read('profile.js') + '</script>')
   .replace('<script src="mcpconfig.js"></script>', '<script>' + read('mcpconfig.js') + '</script>')
   .replace('<script src="assistant.js"></script>', '<script>' + read('assistant.js') + '</script>')
@@ -351,12 +352,29 @@ $('viewExploded').click(); ok($('viewExploded').getAttribute('aria-pressed') ===
 T0.go('map');
 $('signOut').click(); ok($('gatePwRow').hidden && $('gateModeRow').hidden && $('gateGo').textContent === 'Log in', 'with no API address the gate is the demo gate: no password field, no account switch'); $('gateGuest').click();
 
+// ---- the About page: public, built from the model, reachable from the tab and from the dashboard ----
+{
+  const q1 = (q) => w.document.querySelector(q), qa = (q) => [...w.document.querySelectorAll(q)];
+  T0.go('about');
+  ok(!$('viewAbout').hidden && $('viewMap').hidden && $('viewAnalysis').hidden && w.location.hash === '#/about' && $('tabAbout').getAttribute('aria-current') === 'page' && !$('tabMap').getAttribute('aria-current') && /About the numbers/.test(w.document.title), 'the About page opens on its own address, with its tab marked, and the other pages hidden');
+  ok(qa('#aboutSources .srcrow').length === Object.keys(w.Terrarium.ASSUME).length && qa('#aboutSources .srcrow[data-grade="SOURCED"]').length === Object.values(w.Terrarium.ASSUME).filter((a) => a.grade === 'SOURCED').length, 'it lists every assumption the model uses');
+  ok(/0\.74/.test(q1('#aboutSources .srcrow[data-key="gridKgKwh"]').textContent) && /Energy Commission/.test($('aboutSources').textContent) && /27\.03 sen per kWh/.test($('aboutSources').textContent), 'the sourced grid factor and tariff are on the page, with their publisher');
+  ok(qa('#viewAbout a[href]').every((a) => /^https:\/\//.test(a.getAttribute('href')) && a.target === '_blank' && /noopener/.test(a.rel)) && qa('#viewAbout details.faq').length === 9, 'every outside link opens safely, and the nine questions are there');
+  T0.go('analysis'); ok($('viewAbout').hidden && !$('viewAnalysis').hidden, 'leaving About hides it');
+  $('anaAbout').click(); ok(!$('viewAbout').hidden && w.location.hash === '#/about', 'the dashboard\'s "Where do these numbers come from?" takes you there');
+  T0.go('map'); ok($('viewAbout').hidden && !$('viewMap').hidden && $('tabMap').getAttribute('aria-current') === 'page', 'and the Map tab takes you back');
+  { let scrolls = 0; w.scrollTo = () => { scrolls++; }; T0.go('about'); ok(scrolls >= 1, 'opening About starts at the top of the page'); T0.go('map'); }
+  // signing out while on About must not throw the gate over the page being read; it waits until the visitor leaves
+  { ok($('gate').hidden, 'a guest is in (no gate) before this check'); T0.go('about'); $('signOut').click();
+    ok($('gate').hidden && !$('viewAbout').hidden, 'signing out on the About page leaves the page readable: the gate waits');
+    T0.go('map'); ok(!$('gate').hidden, 'and appears when the visitor goes back'); $('gateGuest').click(); ok($('gate').hidden, 'a guest can carry on'); }
+}
 // ---- the Analysis dashboard ----
 {
   const q1 = (q) => w.document.querySelector(q), qa = (q) => [...w.document.querySelectorAll(q)], fire = (e, t, init) => e.dispatchEvent(new w.Event(t, Object.assign({ bubbles: true }, init)));
   const key = (e, k) => e.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
   $('house').value = 'condo'; fire($('house'), 'change'); setRange('level', 12); setRange('solarKwp', 0); setRange('acHours', 8); setRange('walkShare', 30); setRange('trees', 3); $('hotWeek').checked = false; fire($('hotWeek'), 'change');
-  ok(!/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(read('dashview.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'the dashboard is drawn with DOM calls and text only, never parsed as HTML');
+  ok(['dashview.js', 'aboutview.js'].every((f) => !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''))), 'the dashboard and the About page are drawn with DOM calls and text only, never parsed as HTML');
   // the verdict
   ok(/^Home score \d+ out of 100$/.test(q1('#dashHead .ring').getAttribute('aria-label')) && qa('#dashHead .delta').length === 3 && qa('#dashHead .delta .badge').length === 3 && /kWh a month/.test(q1('#dashHead .dh-sentence').textContent) && /placeholder scoring/.test($('dashHead').textContent), 'the verdict shows the score ring, a sentence, three headline figures with grade badges, and says the scoring is a placeholder');
   ok(qa('#dashHead .delta').every((d) => /illustrative neighbour (RM )?\d+/.test(d.querySelector('small:last-child').textContent)), 'each headline figure shows the illustrative neighbour\'s own number');

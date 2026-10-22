@@ -529,6 +529,7 @@ test('SOURCES: a figure graded REAL or SOURCED has a citation, a placeholder has
     if (s.read === 'secondary') assert.notStrictEqual(a.grade, 'REAL', k + ': a report of a source cannot make a figure REAL');
   });
   Object.keys(T.SOURCES).forEach((k) => assert.ok(T.ASSUME[k], k + ' is cited but is not an assumption'));
+  Object.values(T.SOURCES).forEach((s) => assert.ok(!/re-checked/.test(s.caveat), 'the caveat says something the status line does not'));
   assert.strictEqual(T.SOURCES.tariff.read, 'secondary'); assert.strictEqual(T.SOURCES.gridKgKwh.read, 'primary');
   assert.ok(/left out/.test(T.SOURCES.tariff.caveat) && /not found in the Energy Commission or TNB schedule/.test(T.SOURCES.tariff.caveat), 'the tariff says what it does not cover and where it was not confirmed');
 });

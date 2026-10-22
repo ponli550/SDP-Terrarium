@@ -34,6 +34,8 @@ Only REAL and SOURCED figures are headlined in the pitch. We have not measured a
 6. **Open Analysis**, a dashboard: a verdict (score ring and a one-sentence summary), the three headline figures against the neighbour, what drives each of the four pillars, the month day by day with the solar offset and the neighbour beside it, **what would change it** (every change re-run on your home, with its effect on score, carbon, money and comfort, and an Apply button), and, for a condo, **your floor** against all 35. Every figure keeps its grade, the page counts how many are real (today: none are measured, which it says), and a list says what it does not tell you.
 
 ![The Analysis dashboard for a condo on level 12](docs/media/dashboard.png)
+
+7. **About** (a tab, open to a visitor before sign-up): how to read the three grades, a table of every number the model uses with its grade and, for the real and sourced ones, its citation, what we read and what we did not; a FAQ (including that flooding and the greenhouse effect are not modelled); what an account keeps; and a plain notice that this is a prototype. The table is built from the model itself, and a test fails if a figure is graded above ILLUSTRATIVE without a citation, or if the page says something the code contradicts (for example that there is no account deletion, or that no email is sent).
 7. **After handover**, type the kWh from your real bill and the model matches itself to it.
 
 ![Exploded view: a condo pulled apart floor by floor, your floor tinted](docs/media/exploded.png)

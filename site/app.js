@@ -11,16 +11,17 @@
   };
   // ---- two pages in one app: Map (the 3D township, the play dock, the chat) and Analysis (habits, scores, chart, figures, bill) ----
   // One document, so a guest's home and a game in progress survive moving between them. The address (#/map, #/analysis) keeps Back and bookmarks working.
-  var view = 'map', viewLaterAt = 0, modeLaterAt = 0, pausePlayAt = 0;
-  function viewFromHash() { return location.hash === '#/analysis' ? 'analysis' : 'map'; }
+  var view = 'map', viewLaterAt = 0, modeLaterAt = 0, pausePlayAt = 0, gateWasOpen = false;   // the About page is public: the gate steps aside for it and comes back
+  function viewFromHash() { return location.hash === '#/analysis' ? 'analysis' : location.hash === '#/about' ? 'about' : 'map'; }
   function setView(v) {
-    view = v; $('viewMap').hidden = v !== 'map'; $('viewAnalysis').hidden = v !== 'analysis';
-    if (v === 'map') { $('tabMap').setAttribute('aria-current', 'page'); $('tabAnalysis').removeAttribute('aria-current'); } else { $('tabAnalysis').setAttribute('aria-current', 'page'); $('tabMap').removeAttribute('aria-current'); }
-    document.title = 'Terrarium \u00b7 ' + (v === 'map' ? 'Map' : 'Analysis');
+    view = v; $('viewMap').hidden = v !== 'map'; $('viewAnalysis').hidden = v !== 'analysis'; $('viewAbout').hidden = v !== 'about';
+    [['map', 'tabMap'], ['analysis', 'tabAnalysis'], ['about', 'tabAbout']].forEach(function (t) { if (t[0] === v) $(t[1]).setAttribute('aria-current', 'page'); else $(t[1]).removeAttribute('aria-current'); });
+    document.title = 'Terrarium \u00b7 ' + (v === 'map' ? 'Map' : v === 'analysis' ? 'Analysis' : 'About the numbers');
     if (scene) scene.setActive(v === 'map');   // nothing is drawn, and the clock does not run, while the Analysis page is showing
-    if (v === 'analysis') window.scrollTo(0, 0);
+    if (v !== 'map') window.scrollTo(0, 0);
+    if (v === 'about') { if (!$('gate').hidden) { gateWasOpen = true; $('gate').hidden = true; } } else if (gateWasOpen) { gateWasOpen = false; if (!session) showGate(); }
   }
-  function go(v) { var h = v === 'analysis' ? '#/analysis' : '#/map'; if (location.hash !== h) location.hash = h; setView(v); }
+  function go(v) { var h = v === 'analysis' ? '#/analysis' : v === 'about' ? '#/about' : '#/map'; if (location.hash !== h) location.hash = h; setView(v); }
   window.addEventListener('hashchange', function () { setView(viewFromHash()); });
   // the chat floats over the map; the play dock sits beside it. Both can be folded away.
   function openChat(on) { $('ask').hidden = !on; $('chatToggle').setAttribute('aria-expanded', String(!!on)); $('chatToggle').textContent = on ? 'Close chat' : 'Ask about your month'; if (on) $('askInput').focus(); }
@@ -31,7 +32,8 @@
 
   // ---- sign-in, the saved home and the set-up dialog ----
   var P = window.TerrariumProfile, session = null, store = null, firstRun = false, alt = null;
-  var D = window.TerrariumDashboard, DV = window.TerrariumDashView, dashData = null;   // the Analysis dashboard: its numbers, and the code that draws them
+  var D = window.TerrariumDashboard, DV = window.TerrariumDashView, dashData = null;
+  window.TerrariumAboutView.render(document, { grades: document.getElementById('aboutGrades'), sources: document.getElementById('aboutSources'), faq: document.getElementById('aboutFaq'), data: document.getElementById('aboutData'), terms: document.getElementById('aboutTerms') }, window.Terrarium);   // built once: it only reads the model's tables   // the Analysis dashboard: its numbers, and the code that draws them
   try { store = P.createStore(window.localStorage); } catch (e) { store = P.createStore(null); }
   var API = window.TERRARIUM_API || '', mode = 'login', busy = false;
   if (API && window.TerrariumRemote) {   // real accounts; with no API address the demo store above stays
@@ -130,7 +132,8 @@
   function showRecovery(code) { $('recAsk').hidden = true; $('recShow').hidden = false; $('recCode').textContent = code; $('recSaved').checked = false; $('recDone').disabled = true; $('recCopied').textContent = ''; $('recovery').hidden = false; $('recSaved').focus(); }
   function askRecovery() { $('recShow').hidden = true; $('recAsk').hidden = false; $('recPw').value = ''; $('recErr').textContent = ''; $('recovery').hidden = false; $('recPw').focus(); }
   function closeRecovery() { $('recCode').textContent = ''; $('recPw').value = ''; $('recovery').hidden = true; }   // the code leaves the page when the dialog does
-  function showGate() { $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gatePw').value = '';
+  function showGate() { if (view === 'about') { gateWasOpen = true; return; }   // shown when the visitor leaves About
+    $('gateErr').textContent = ''; $('gateEmail').value = ''; $('gatePw').value = '';
     if (store.remote) { $('gatePwRow').hidden = false; $('gateModeRow').hidden = false; $('gateCode').value = ''; gateMode('login'); $('gate').hidden = false; $('gateEmail').focus(); return; }
     $('gatePwRow').hidden = true; $('gateModeRow').hidden = true; $('gateGo').textContent = 'Log in'; $('gateNote').textContent = store.isPersistent() ? 'Demo sign-in: no password, and nothing leaves this browser. A real version would sign in through a server.' : 'Your browser is blocking storage, so your home will not be kept after you close this page. This is a demo sign-in with no password.'; $('gate').hidden = false; $('gateEmail').focus(); }
   $('wizFields').innerHTML = wizardHtml();
@@ -184,6 +187,7 @@
   $('anaCompare').addEventListener('click', openCompare);
   $('anaMonth').addEventListener('click', function () { if (!g) showFirstLook(); });
   $('anaMap').addEventListener('click', function () { go('map'); });
+  $('anaAbout').addEventListener('click', function () { go('about'); });
   $('anaChoices').addEventListener('click', function () {   // on a phone the choices sit below the dashboard: jump to them
     var c = $('choices'), calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (c.scrollIntoView) c.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); $('house').focus({ preventScroll: true });
@@ -465,6 +469,7 @@
   if (SHOT && q0.has('recovery') && store.remote) { session = null; showChip(); $('gate').hidden = true; showRecovery('K7QX2-9HMWD-TR4ZB-8NPCF'); }
   if (SHOT && q0.has('wizard')) openWizard();
   if (SHOT && q0.get('view') === 'analysis') location.hash = '#/analysis';
+  if (SHOT && q0.get('view') === 'about') location.hash = '#/about';
   if (SHOT && q0.has('viewlater')) viewLaterAt = +q0.get('viewlater');
   if (SHOT && q0.has('modelater')) modeLaterAt = +q0.get('modelater');
   if (SHOT && q0.has('pauseplay')) pausePlayAt = +q0.get('pauseplay');   // pause then resume at this frame   // go back to Lab at this frame
