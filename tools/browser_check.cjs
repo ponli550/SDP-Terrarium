@@ -200,4 +200,23 @@ const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=cond
 });
 let pm = phoneUi('house=condo&level=5&lot=0&frames=12&solarKwp=4&menu=1', 360, 740);
 ok(pm && pm.overflow.scroll <= 1 && pm.overflow.wide.length === 0 && pm.layout.overlaps.length === 0, 'at 360 px the open account menu fits on the screen');
+
+// The page's Content-Security-Policy is enforced by the browser: a script injected into the page, inline or as an event handler, must not run,
+// and the page must still boot under the policy. The same injection with the policy removed must run, or the first result proves nothing.
+{
+  const site = path.join(__dirname, '..', 'site'), original = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
+  const inject = '<script>document.documentElement.setAttribute("data-xss-inline","1")</script><img src="x" onerror="document.documentElement.setAttribute(\'data-xss-handler\',\'1\')">';
+  const copy = (name, strip) => {
+    let html = original.replace(/(src|href)="(?!https?:|data:|#)([^"]+)"/g, (m, k, v) => k + '="file://' + path.join(site, v) + '"').replace('</body>', inject + '</body>');
+    if (strip) html = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '');
+    const f = path.join(PROFILE, name); fs.writeFileSync(f, html); return 'file://' + f;
+  };
+  const run = (url) => { for (let i = 0; i < 9; i++) { const o = spawnSync('node', [path.join(__dirname, 'chrome_dump.cjs'), CHROME, PROFILE, url + '?shot&frames=6', '--allow-file-access-from-files'], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout || ''; if (/data-state=/.test(o) && /data-ui=/.test(o)) return o; } return ''; };
+  const guarded = run(copy('csp-on.html', false)), control = run(copy('csp-off.html', true));
+  ok(guarded && control, 'both CSP probe pages booted');
+  const ran = (h, k) => new RegExp('<html[^>]*data-xss-' + k + '="1"').test(h);   // the attribute the injected code sets, not its source text
+  ok(ran(control, 'inline') && ran(control, 'handler'), 'control: without the policy an injected inline script and an inline handler both run');
+  ok(!ran(guarded, 'inline') && !ran(guarded, 'handler'), 'with the policy neither the injected script nor the injected handler runs');
+  ok(!/id="nowebgl"/.test(guarded) && attr(guarded, 'ui') !== null, 'and the page still boots and draws its 3D scene under the policy');
+}
 console.log('browser checks passed:', n);
