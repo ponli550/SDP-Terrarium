@@ -20,6 +20,15 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const submit = (email, pw) => { $('gateEmail').value = email; $('gatePw').value = pw; $('gateForm').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true })); return wait(150); };
   const token = () => w.localStorage.getItem('terrarium.token');
 
+  // the page's security policy: scripts only from this site, and the only server the page may talk to is the one config.js names
+  const csp = Object.fromEntries(read('index.html').match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/)[1].split(';').map((d) => d.trim().split(/\s+/)).map((d) => [d[0], d.slice(1)]));
+  const live = read('config.js').match(/TERRARIUM_API = '([^']*)'/)[1];
+  ok(csp['script-src'].join(' ') === "'self'" && csp['default-src'].join(' ') === "'none'" && csp['object-src'].join(' ') === "'none'" && csp['base-uri'].join(' ') === "'none'", 'the policy allows scripts only from this site, and no plugins or base tag');
+  ok(!JSON.stringify(csp).includes('unsafe-eval') && !csp['script-src'].includes("'unsafe-inline'"), 'the policy allows no eval and no inline script');
+  ok(live === '' || csp['connect-src'].includes(new URL(live).origin), 'the policy lets the page talk to the API address in config.js, so the two cannot drift apart');
+  ok(Object.keys(csp).sort().join(',') === 'base-uri,connect-src,default-src,form-action,object-src,script-src,style-src', 'the policy names exactly these directives, so nothing else (frames, fonts, images, workers) is opened without a test noticing');
+  ok(Object.entries(csp).every(([k, v]) => v.every((x) => ["'self'", "'none'"].includes(x) || (k === 'style-src' && x === "'unsafe-inline'") || (k === 'connect-src' && x === new URL(live || 'https://none.invalid').origin))), 'every source in the policy is this site, nothing, the API address, or inline styles: no wildcard, no https:, no data:');
+  ok(csp['connect-src'].every((x) => x === "'self'" || x === new URL(live || 'https://none.invalid').origin), 'and to nothing else');
   ok(!$('gate').hidden, 'a first visit shows the gate');
   ok(!$('gatePwRow').hidden && !$('gateModeRow').hidden && $('gateGo').textContent === 'Log in' && $('gateMode').textContent === 'New here? Create an account', 'with the API on, the gate asks for a password and offers to create an account');
   ok(calls.length === 0, 'opening the page sends nothing');
