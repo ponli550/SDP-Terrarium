@@ -201,6 +201,12 @@ const PHONE_PAGES = [['the sign-in', 'gate=1&frames=6'], ['the Map', 'house=cond
 let pm = phoneUi('house=condo&level=5&lot=0&frames=12&solarKwp=4&menu=1', 360, 740);
 ok(pm && pm.overflow.scroll <= 1 && pm.overflow.wide.length === 0 && pm.layout.overlaps.length === 0, 'at 360 px the open account menu fits on the screen');
 
+// the dashboard is drawn at a readable size at every width: each change's Apply button on its own row and thumb-sized, the charts tall enough to read
+[[360, 740], [390, 844], [430, 932], [768, 1024], [1000, 700]].forEach((wh) => {
+  const u = phoneUi('view=analysis&house=condo&level=12&lot=3&solarKwp=2&frames=8', wh[0], wh[1]), d = u && u.dash;
+  ok(d && d.levers.length === 5 && d.levers.every((r) => Math.abs(r.dy) < 24 && r.btnW <= 150 && r.btnH >= 36 && r.barW >= 60 && r.labelW >= 100), 'at ' + wh[0] + ' px each change sits on one row: name, bars, a thumb-sized Apply button (' + JSON.stringify(d && d.levers[0]) + ')');
+  ok(d && d.tiles === 3 && d.ringW >= 100 && d.chartH >= 170 && d.chartW >= Math.min(wh[0] - 90, 520) && d.floorH >= 100 && d.floorW >= d.chartW - 4 && d.headW >= Math.min(wh[0] - 60, 520), 'at ' + wh[0] + ' px the verdict, the month chart and the floor chart are drawn at a readable size (' + JSON.stringify(d && { ringW: d.ringW, chartW: d.chartW, chartH: d.chartH, floorW: d.floorW, floorH: d.floorH, headW: d.headW }) + ')');
+});
 // the account fields are drawn as wide as the email field (an unstyled password box once shipped), and the recovery code is one line at every phone width
 [[360, 740], [390, 844], [1000, 700]].forEach((wh) => {
   const f = phoneUi('forgot=1&frames=6', wh[0], wh[1]), c = phoneUi('recovery=1&frames=6', wh[0], wh[1]);
