@@ -5,3 +5,19 @@ node_modules/
 # the organisers' template and the deck built from it are their artwork, not ours to publish
 docs/*.pptx
 .venv/
+
+# local secrets and state: never commit these (a Worker's local secrets live in .dev.vars)
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+
+# Python and editor leftovers
+__pycache__/
+*.pyc
+*.log
+
+# recordings and local notes: the demo video is large and goes to a video host, not git
+*.mp4
+*.mov
+docs/DEMO.md
